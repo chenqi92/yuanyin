@@ -1,0 +1,61 @@
+name: yuanyin
+description: "猿音 - 高品质 NAS 音乐播放器"
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  flutter_animate: ^4.5.2
+  gap: ^3.0.1
+  cached_network_image: ^3.4.1
+  google_fonts: ^6.2.1
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Routing
+  go_router: ^15.1.2
+
+  # Audio Core
+  just_audio: ^0.9.42
+  audio_session: ^0.1.25
+  audio_service:
+    path: packages/audio_service_fixed
+  audio_metadata_reader: ^1.4.2
+
+  # Media - Video/Audio engine (FFmpeg)
+  media_kit: ^1.1.11
+  media_kit_libs_video: ^1.0.5
+
+  # Network
+  dio: ^5.8.0+1
+
+  # Local Storage
+  path_provider: ^2.1.5
+  hive_ce: ^2.10.1
+  hive_ce_flutter: ^2.2.0
+
+  # Utils
+  collection: ^1.19.1
+  logger: ^2.5.0
+  image: ^4.3.0
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/

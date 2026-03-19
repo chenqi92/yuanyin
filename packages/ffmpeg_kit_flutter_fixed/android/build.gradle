@@ -1,0 +1,58 @@
+buildscript {
+    ext.kotlin_version = "1.8.22"
+
+    repositories {
+        google()
+        mavenLocal()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.7.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+
+android {
+    namespace = "com.arthenica.ffmpegkit"
+
+    compileSdk = 35
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    defaultConfig {
+        minSdk = 24
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    dependencies {
+        implementation("androidx.annotation:annotation:1.9.1")
+        // 使用社区维护的 ffmpeg-kit fork（原 arthenica 版本已退役）
+        // https://central.sonatype.com/artifact/io.github.xch168/ffmpeg-kit-full-gpl
+        implementation("io.github.xch168:ffmpeg-kit-full-gpl:1.0.2")
+    }
+}

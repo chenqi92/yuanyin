@@ -1,0 +1,338 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:flutter/widgets.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:logger/logger.dart';
+
+import '../../domain/entities/music_item.dart';
+import 'audio_handler_interface.dart';
+
+final _log = Logger(printer: SimplePrinter());
+
+/// just_audio 播放引擎
+///
+/// 基于 AVFoundation (iOS) / ExoPlayer (Android)，
+/// 深度集成系统媒体控制：锁屏、控制中心、蓝牙、CarPlay。
+class MusicAudioHandler extends BaseAudioHandler
+    with SeekHandler, WidgetsBindingObserver
+    implements IMusicAudioHandler {
+  MusicAudioHandler() {
+    _init();
+  }
+
+  final AudioPlayer _player = AudioPlayer();
+
+  Uint8List? _currentArtworkData;
+  MusicItem? _currentMusicItem;
+  final List<MusicItem> _musicQueue = [];
+  int _currentIndex = 0;
+  double _volume = 1.0;
+
+  AudioPlayer get player => _player;
+
+  @override
+  Uint8List? get currentArtworkData => _currentArtworkData;
+
+  @override
+  int get currentIndex => _currentIndex;
+
+  @override
+  MusicItem? get currentMusicItem => _currentMusicItem;
+
+  @override
+  Future<void> Function(int index)? onSkipToIndex;
+
+  Future<void> _init() async {
+    // 延迟注册生命周期监听器
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addObserver(this);
+    });
+
+    // 监听播放状态变化，更新 playbackState
+    _player.playbackEventStream.listen(_broadcastState);
+
+    // 监听时长变化
+    _player.durationStream.listen((duration) {
+      if (duration != null && mediaItem.value != null) {
+        mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+      }
+    });
+
+    // 广播初始 playbackState
+    _broadcastState(PlaybackEvent());
+
+    _log.i('MusicAudioHandler: 初始化完成');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _player.playing && Platform.isIOS) {
+      unawaited(_reactivateAudioSession());
+    }
+  }
+
+  Future<void> _reactivateAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (_player.playing && mediaItem.value != null) {
+        _broadcastStateWithPlaying(true);
+      }
+    } on Exception catch (e) {
+      _log.w('重新激活 AudioSession 失败: $e');
+    }
+  }
+
+  void _broadcastStateWithPlaying(bool playing) {
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.stop,
+        MediaControl.skipToNext,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+      },
+      androidCompactActionIndices: const [0, 1, 3],
+      processingState: _mapProcessingState(_player.processingState),
+      playing: playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+      queueIndex: _currentIndex,
+    ));
+  }
+
+  void _broadcastState(PlaybackEvent event) {
+    _broadcastStateWithPlaying(_player.playing);
+  }
+
+  AudioProcessingState _mapProcessingState(ProcessingState state) {
+    switch (state) {
+      case ProcessingState.idle:
+        return AudioProcessingState.idle;
+      case ProcessingState.loading:
+        return AudioProcessingState.loading;
+      case ProcessingState.buffering:
+        return AudioProcessingState.buffering;
+      case ProcessingState.ready:
+        return AudioProcessingState.ready;
+      case ProcessingState.completed:
+        return AudioProcessingState.completed;
+    }
+  }
+
+  // ==================== IMusicAudioHandler ====================
+
+  @override
+  Future<void> prepareForNewTrack() async {
+    if (_player.playing) {
+      await _player.pause();
+      _broadcastState(PlaybackEvent());
+    }
+    _currentMusicItem = null;
+    _currentArtworkData = null;
+  }
+
+  @override
+  Future<void> setCurrentMusic(MusicItem music, {Uint8List? artworkData}) async {
+    _currentMusicItem = music;
+    _currentArtworkData = artworkData;
+
+    final item = MediaItem(
+      id: music.id,
+      title: music.title,
+      artist: music.artist,
+      album: music.album,
+      duration: music.duration,
+    );
+
+    mediaItem.add(item);
+    _broadcastState(PlaybackEvent());
+
+    _log.i('设置当前音乐: ${music.title} - ${music.artist}');
+  }
+
+  @override
+  Future<void> updateArtwork(Uint8List artworkData) async {
+    _currentArtworkData = artworkData;
+    if (mediaItem.value != null) {
+      _broadcastState(PlaybackEvent());
+    }
+  }
+
+  @override
+  void updateDuration(Duration duration) {
+    if (mediaItem.value != null && duration > Duration.zero) {
+      mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+    }
+  }
+
+  @override
+  void setQueue(List<MusicItem> items, {int startIndex = 0}) {
+    _musicQueue
+      ..clear()
+      ..addAll(items);
+    _currentIndex = startIndex;
+
+    final mediaItems = items
+        .map((m) => MediaItem(
+              id: m.id,
+              title: m.title,
+              artist: m.artist,
+              album: m.album,
+              duration: m.duration,
+            ))
+        .toList();
+    queue.add(mediaItems);
+  }
+
+  @override
+  void updateCurrentIndex(int index) {
+    _currentIndex = index;
+    _broadcastState(PlaybackEvent());
+  }
+
+  @override
+  Future<Duration?> setAudioSource(String url, {Map<String, String>? headers}) async {
+    final uri = Uri.parse(url);
+    AudioSource audioSource;
+
+    if (uri.scheme == 'file') {
+      audioSource = AudioSource.uri(uri);
+    } else if (headers != null && headers.isNotEmpty) {
+      audioSource = AudioSource.uri(uri, headers: headers);
+    } else {
+      audioSource = AudioSource.uri(uri);
+    }
+
+    return _player.setAudioSource(audioSource);
+  }
+
+  @override
+  Future<void> stopPlayer() => _player.stop();
+
+  @override
+  Future<void> seekTo(Duration position) => _player.seek(position);
+
+  // ==================== 标准控制 ====================
+
+  @override
+  Future<void> play() async {
+    unawaited(_player.play());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    _broadcastState(PlaybackEvent());
+  }
+
+  @override
+  Future<void> pause() async {
+    unawaited(_player.pause());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    _broadcastState(PlaybackEvent());
+  }
+
+  @override
+  Future<void> stop() async {
+    unawaited(_player.stop());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    _broadcastState(PlaybackEvent());
+    await super.stop();
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    await _player.seek(position);
+    _broadcastState(PlaybackEvent());
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    if (_musicQueue.isEmpty) return;
+    final nextIndex = (_currentIndex + 1) % _musicQueue.length;
+    await _skipToIndex(nextIndex);
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    if (_musicQueue.isEmpty) return;
+    if (_player.position.inSeconds > 3) {
+      await seek(Duration.zero);
+      return;
+    }
+    final prevIndex = (_currentIndex - 1 + _musicQueue.length) % _musicQueue.length;
+    await _skipToIndex(prevIndex);
+  }
+
+  Future<void> _skipToIndex(int index) async {
+    if (index < 0 || index >= _musicQueue.length) return;
+    _currentIndex = index;
+    if (onSkipToIndex != null) {
+      await onSkipToIndex!(index);
+    }
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    _volume = volume;
+    await _player.setVolume(volume);
+  }
+
+  @override
+  double get volume => _volume;
+
+  @override
+  Future<void> refreshNowPlaying() async {
+    _broadcastState(PlaybackEvent());
+  }
+
+  // ==================== Streams ====================
+
+  @override
+  Stream<Duration> get positionStream => _player.positionStream;
+
+  @override
+  Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
+
+  @override
+  Stream<Duration> get durationStream =>
+      _player.durationStream.where((d) => d != null).map((d) => d!);
+
+  @override
+  Stream<bool> get playingStream => _player.playingStream;
+
+  @override
+  Stream<bool> get bufferingStream => _player.processingStateStream.map((state) =>
+      state == ProcessingState.buffering || state == ProcessingState.loading);
+
+  @override
+  Stream<bool> get completedStream => _player.processingStateStream
+      .map((state) => state == ProcessingState.completed)
+      .distinct();
+
+  @override
+  Future<void> dispose() async {
+    WidgetsBinding.instance.removeObserver(this);
+    await _player.dispose();
+  }
+}
+
+/// 全局 AudioHandler 初始化
+Future<MusicAudioHandler> initAudioHandler() => AudioService.init(
+      builder: MusicAudioHandler.new,
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.kkape.yuanyin.channel.audio',
+        androidNotificationChannelName: '猿音播放',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      ),
+    );
