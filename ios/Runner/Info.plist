@@ -66,5 +66,26 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Primuse requires access to your local network to discover and play music from your NAS, SMB, or WebDAV servers.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Primuse requires microphone access for audio engine compatibility and playback features.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Primuse requires access to your Apple Music library to read local audio files.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Primuse requires access to your photo library to save or load custom playlist covers.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dartobservatory._tcp</string>
+	</array>
 </dict>
 </plist>

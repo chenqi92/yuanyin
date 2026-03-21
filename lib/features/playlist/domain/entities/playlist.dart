@@ -23,5 +23,5 @@ class Playlist {
   int get songCount => songs.length;
 
   Duration get totalDuration =>
-      songs.fold(Duration.zero, (sum, s) => sum + s.duration);
+      songs.fold(Duration.zero, (sum, s) => sum + (s.duration ?? Duration.zero));
 }

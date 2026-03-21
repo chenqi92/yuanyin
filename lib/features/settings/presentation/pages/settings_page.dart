@@ -4,15 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-import '../../../../app/theme/theme.dart';
 import '../../../../app/l10n/strings.dart';
+import '../../../../app/theme/theme.dart';
+import '../../../../shared/widgets/modern_music_ui.dart';
 import '../../data/services/settings_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../player/data/services/sleep_timer_service.dart';
-import '../../../player/data/services/equalizer_service.dart';
 import '../../../library/data/services/metadata_scraper.dart';
-import '../../../library/data/services/music_database_service.dart';
+import '../../../sources/presentation/providers/source_provider.dart';
 
 /// 设置页 — v3 重新组织
 class SettingsPage extends ConsumerWidget {
@@ -21,54 +20,74 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final library = ref.watch(libraryProvider);
+    final sources = ref.watch(sourcesProvider);
+    final sleepTimer = ref.watch(sleepTimerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // 自适应颜色
-    final bgBase = isDark ? YYColors.bgBase : YYLightColors.bgBase;
     final bgElevated = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-    final textPrimary = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final textSecondary = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final textTertiary = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+    final textPrimary = isDark
+        ? YYColors.textPrimary
+        : YYLightColors.textPrimary;
+    final textSecondary = isDark
+        ? YYColors.textSecondary
+        : YYLightColors.textSecondary;
+    final textTertiary = isDark
+        ? YYColors.textTertiary
+        : YYLightColors.textTertiary;
     final separator = isDark ? YYColors.separator : YYLightColors.separator;
 
     return Scaffold(
-      backgroundColor: bgBase,
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(YYSpacing.screenH, 12, YYSpacing.screenH, 0),
-                child: Text('设置', style: TextStyle(
-                    color: textPrimary, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+      backgroundColor: Colors.transparent,
+      body: YYScenicBackground(
+        accent: YYColors.accentPrimary,
+        child: SafeArea(
+          bottom: false,
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 28),
+            children: [
+              YYPageHeader(
+                eyebrow: '系统偏好',
+                title: '设置',
+                subtitle: '播放引擎、主题、缓存和数据源，都在这里统一管理。',
               ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 160),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const SizedBox(height: 24),
-
-                // ── 数据源 ──
-                _SectionTitle('数据源', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _SettingsSnapshotCard(
+                  themeMode: settings.themeMode,
+                  engine: settings.engine,
+                  songCount: library.stats.songCount,
+                  sourceCount: sources.sources.length,
+                  sleepLabel: sleepTimer.isActive
+                      ? '${sleepTimer.remaining.inMinutes}m'
+                      : '关闭',
+                ),
+              ),
+              const SizedBox(height: 18),
+              const YYSectionTitle(
+                title: '数据源与扫描',
+                subtitle: '先管理入口，再处理重扫和连接状态',
+              ),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   _SettingsRow(
                     icon: CupertinoIcons.folder,
                     iconColor: YYColors.accentPrimary,
                     title: '数据源管理',
-                    subtitle: '添加、编辑 NAS/WebDAV/本地文件夹',
+                    subtitle: '添加、编辑 NAS / WebDAV / 本地文件夹',
                     onTap: () => context.push('/sources'),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                ]),
+                ],
+              ),
 
-                // ── 音乐管理 ──
-                const SizedBox(height: 20),
-                _SectionTitle('音乐管理', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              const SizedBox(height: 20),
+              const YYSectionTitle(title: '曲库维护', subtitle: '元数据、封面和播放统计都在这里'),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   _SettingsRow(
                     icon: CupertinoIcons.arrow_2_circlepath,
                     iconColor: const Color(0xFF10B981),
@@ -76,9 +95,15 @@ class SettingsPage extends ConsumerWidget {
                     subtitle: '扫描所有数据源以更新歌曲列表',
                     onTap: () => _rescanLibrary(context, ref),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   _SettingsRow(
                     icon: CupertinoIcons.tag,
                     iconColor: const Color(0xFFF59E0B),
@@ -86,9 +111,15 @@ class SettingsPage extends ConsumerWidget {
                     subtitle: '从在线数据库匹配并补全歌曲信息',
                     onTap: () => _batchScrape(context, ref, false),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   _SettingsRow(
                     icon: CupertinoIcons.photo,
                     iconColor: const Color(0xFFEC4899),
@@ -96,9 +127,15 @@ class SettingsPage extends ConsumerWidget {
                     subtitle: '自动从网络下载专辑封面',
                     onTap: () => _batchScrape(context, ref, true),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   _SettingsRow(
                     icon: CupertinoIcons.chart_bar_alt_fill,
                     iconColor: const Color(0xFF8B5CF6),
@@ -106,51 +143,93 @@ class SettingsPage extends ConsumerWidget {
                     subtitle: '查看播放次数和时长排行',
                     onTap: () => context.push('/stats'),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                ]),
+                ],
+              ),
 
-                // ── 播放 ──
-                const SizedBox(height: 20),
-                _SectionTitle('播放', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              const SizedBox(height: 20),
+              const YYSectionTitle(title: '播放体验', subtitle: '控制引擎、淡入淡出和均衡器细节'),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   _SettingsRow(
                     icon: CupertinoIcons.waveform,
                     iconColor: const Color(0xFF06B6D4),
                     title: '播放引擎',
-                    subtitle: settings.engine == 'just_audio' ? 'just_audio (原生)' : 'media_kit (FFmpeg)',
-                    onTap: () => _showEngineSelector(context, ref, settings.engine, bgElevated, textPrimary, textTertiary, separator),
+                    subtitle: settings.engine == 'just_audio'
+                        ? 'just_audio (原生)'
+                        : 'media_kit (FFmpeg)',
+                    onTap: () => _showEngineSelector(
+                      context,
+                      ref,
+                      settings.engine,
+                      bgElevated,
+                      textPrimary,
+                      textTertiary,
+                      separator,
+                    ),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   // 交叉淡化
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
+                    ),
                     child: Row(
                       children: [
                         Container(
-                          width: 32, height: 32,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(
+                              0xFF8B5CF6,
+                            ).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(CupertinoIcons.arrow_right_arrow_left, color: Color(0xFF8B5CF6), size: 16),
+                          child: const Icon(
+                            CupertinoIcons.arrow_right_arrow_left,
+                            color: Color(0xFF8B5CF6),
+                            size: 16,
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        Text('交叉淡化', style: TextStyle(color: textPrimary, fontSize: 15)),
+                        Text(
+                          '交叉淡化',
+                          style: TextStyle(
+                            color: textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Slider(
                             value: settings.crossfadeDuration,
-                            min: 0, max: 5, divisions: 10,
-                            onChanged: (v) => ref.read(settingsProvider.notifier).setCrossfade(v),
+                            min: 0,
+                            max: 5,
+                            divisions: 10,
+                            onChanged: (v) => ref
+                                .read(settingsProvider.notifier)
+                                .setCrossfade(v),
                           ),
                         ),
                         SizedBox(
                           width: 36,
                           child: Text(
-                            settings.crossfadeDuration > 0 ? '${settings.crossfadeDuration.toStringAsFixed(1)}s' : '关',
+                            settings.crossfadeDuration > 0
+                                ? '${settings.crossfadeDuration.toStringAsFixed(1)}s'
+                                : '关',
                             style: TextStyle(color: textTertiary, fontSize: 12),
                             textAlign: TextAlign.right,
                           ),
@@ -158,7 +237,12 @@ class SettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   _SettingsRow(
                     icon: CupertinoIcons.waveform_path_ecg,
                     iconColor: const Color(0xFFEC4899),
@@ -166,86 +250,118 @@ class SettingsPage extends ConsumerWidget {
                     subtitle: '5 段 EQ 调节与预设',
                     onTap: () => context.push('/equalizer'),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                ]),
+                ],
+              ),
 
-                // ── 定时关闭 ──
-                const SizedBox(height: 20),
-                _SectionTitle('定时关闭', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
-                  Consumer(builder: (ctx, ref2, _) {
-                    final timer = ref2.watch(sleepTimerProvider);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: timer.isActive
-                          ? Row(
-                              children: [
-                                Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    color: YYColors.accentPrimary.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 20),
+              YYSectionTitle(
+                title: '定时关闭',
+                subtitle: sleepTimer.isActive
+                    ? '剩余 ${sleepTimer.remaining.inMinutes} 分 ${sleepTimer.remaining.inSeconds % 60} 秒'
+                    : '选一个时间点，让播放自动收尾',
+              ),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
+                  Consumer(
+                    builder: (ctx, ref2, _) {
+                      final timer = ref2.watch(sleepTimerProvider);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: timer.isActive
+                            ? Row(
+                                children: [
+                                  const YYIconBadge(
+                                    icon: CupertinoIcons.moon_fill,
+                                    color: YYColors.accentPrimary,
+                                    size: 36,
                                   ),
-                                  child: const Icon(CupertinoIcons.moon_fill, color: YYColors.accentPrimary, size: 16),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  '剩余 ${timer.remaining.inMinutes} 分 ${timer.remaining.inSeconds % 60} 秒',
-                                  style: TextStyle(color: textPrimary, fontSize: 15),
-                                ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () => ref2.read(sleepTimerProvider.notifier).cancelTimer(),
-                                  child: const Text('取消', style: TextStyle(color: YYColors.statusError)),
-                                ),
-                              ],
-                            )
-                          : Wrap(
-                              spacing: 8, runSpacing: 8,
-                              children: [15, 30, 45, 60, 90].map((min) {
-                                return GestureDetector(
-                                  onTap: () => ref2.read(sleepTimerProvider.notifier)
-                                      .startTimer(Duration(minutes: min)),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? YYColors.bgSurface : YYLightColors.bgSurface,
-                                      borderRadius: BorderRadius.circular(8),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      '剩余 ${timer.remaining.inMinutes} 分 ${timer.remaining.inSeconds % 60} 秒',
+                                      style: TextStyle(
+                                        color: textPrimary,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                    child: Text('$min 分钟',
-                                        style: TextStyle(color: textPrimary, fontSize: 14)),
                                   ),
-                                );
-                              }).toList(),
-                            ),
-                    );
-                  }),
-                ]),
+                                  YYPillButton(
+                                    label: '取消',
+                                    compact: true,
+                                    onTap: () => ref2
+                                        .read(sleepTimerProvider.notifier)
+                                        .cancelTimer(),
+                                  ),
+                                ],
+                              )
+                            : Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [15, 30, 45, 60, 90].map((min) {
+                                  return YYPillButton(
+                                    label: '$min 分钟',
+                                    compact: true,
+                                    onTap: () => ref2
+                                        .read(sleepTimerProvider.notifier)
+                                        .startTimer(Duration(minutes: min)),
+                                  );
+                                }).toList(),
+                              ),
+                      );
+                    },
+                  ),
+                ],
+              ),
 
-                // ── 外观 ──
-                const SizedBox(height: 20),
-                _SectionTitle('外观', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              const SizedBox(height: 20),
+              const YYSectionTitle(title: '外观与语言', subtitle: '主题和语言会即时切换'),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Container(
-                          width: 32, height: 32,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
-                            color: YYColors.accentPrimary.withValues(alpha: 0.15),
+                            color: YYColors.accentPrimary.withValues(
+                              alpha: 0.15,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(CupertinoIcons.paintbrush, color: YYColors.accentPrimary, size: 16),
+                          child: const Icon(
+                            CupertinoIcons.paintbrush,
+                            color: YYColors.accentPrimary,
+                            size: 16,
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        Text('主题', style: TextStyle(color: textPrimary, fontSize: 15)),
+                        Text(
+                          '主题',
+                          style: TextStyle(color: textPrimary, fontSize: 15),
+                        ),
                         const Spacer(),
                         _ThemeSegment(
                           current: settings.themeMode,
-                          onChanged: (mode) => ref.read(settingsProvider.notifier).setThemeMode(mode),
-                          bgSurface: isDark ? YYColors.bgSurface : YYLightColors.bgSurface,
+                          onChanged: (mode) => ref
+                              .read(settingsProvider.notifier)
+                              .setThemeMode(mode),
+                          bgSurface: isDark
+                              ? YYColors.bgSurface
+                              : YYLightColors.bgSurface,
                           bgElevated: bgElevated,
                           textPrimary: textPrimary,
                           textTertiary: textTertiary,
@@ -253,116 +369,201 @@ class SettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Divider(height: 1, color: separator, indent: 52),
+                  Divider(
+                    height: 1,
+                    color: separator,
+                    indent: 64,
+                    endIndent: 18,
+                  ),
                   // 语言
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Container(
-                          width: 32, height: 32,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF10B981,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(CupertinoIcons.globe, color: Color(0xFF10B981), size: 16),
+                          child: const Icon(
+                            CupertinoIcons.globe,
+                            color: Color(0xFF10B981),
+                            size: 16,
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        Text('语言', style: TextStyle(color: textPrimary, fontSize: 15)),
+                        Text(
+                          '语言',
+                          style: TextStyle(color: textPrimary, fontSize: 15),
+                        ),
                         const Spacer(),
-                        Consumer(builder: (ctx, ref2, _) {
-                          final locale = ref2.watch(localeProvider);
-                          final currentLang = locale?.languageCode ?? 'zh';
-                          return Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              color: isDark ? YYColors.bgSurface : YYLightColors.bgSurface,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildLangChip('中文', 'zh', currentLang, ref2, textPrimary, textTertiary),
-                                _buildLangChip('EN', 'en', currentLang, ref2, textPrimary, textTertiary),
-                              ],
-                            ),
-                          );
-                        }),
+                        Consumer(
+                          builder: (ctx, ref2, _) {
+                            final locale = ref2.watch(localeProvider);
+                            final currentLang = locale?.languageCode ?? 'zh';
+                            return Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? YYColors.bgSurface
+                                    : YYLightColors.bgSurface,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildLangChip(
+                                    '中文',
+                                    'zh',
+                                    currentLang,
+                                    ref2,
+                                    textPrimary,
+                                    textTertiary,
+                                  ),
+                                  _buildLangChip(
+                                    'EN',
+                                    'en',
+                                    currentLang,
+                                    ref2,
+                                    textPrimary,
+                                    textTertiary,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
-                ]),
+                ],
+              ),
 
-                // ── 存储 ──
-                const SizedBox(height: 20),
-                _SectionTitle('存储', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              const SizedBox(height: 20),
+              const YYSectionTitle(title: '缓存与存储', subtitle: '清理临时文件和最近播放记录'),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   _SettingsRow(
                     icon: CupertinoIcons.delete,
                     iconColor: YYColors.statusError,
                     title: '清除缓存',
                     subtitle: '清除最近播放记录和临时文件',
-                    onTap: () => _showClearCacheDialog(context, bgElevated, textPrimary, textSecondary, textTertiary),
+                    onTap: () => _showClearCacheDialog(
+                      context,
+                      bgElevated,
+                      textPrimary,
+                      textSecondary,
+                      textTertiary,
+                    ),
                     showArrow: true,
-                    textPrimary: textPrimary, textTertiary: textTertiary,
+                    textPrimary: textPrimary,
+                    textTertiary: textTertiary,
                   ),
-                ]),
+                ],
+              ),
 
-                // ── 关于 ──
-                const SizedBox(height: 20),
-                _SectionTitle('关于', textTertiary),
-                _SettingsCard(bgElevated: bgElevated, children: [
+              const SizedBox(height: 20),
+              const YYSectionTitle(title: '关于应用', subtitle: '当前版本和产品信息'),
+              _SettingsCard(
+                bgElevated: bgElevated,
+                children: [
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
                         Container(
-                          width: 48, height: 48,
+                          width: 48,
+                          height: 48,
                           decoration: BoxDecoration(
                             gradient: YYColors.accentGradient,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(CupertinoIcons.music_note_2, color: Colors.white, size: 24),
+                          child: const Icon(
+                            CupertinoIcons.music_note_2,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                         ),
                         const SizedBox(width: 14),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('猿音 Primuse', style: TextStyle(
-                                color: textPrimary, fontWeight: FontWeight.w600, fontSize: 16)),
+                            Text(
+                              '猿音 Primuse',
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text('版本 0.1.0', style: TextStyle(color: textTertiary, fontSize: 13)),
+                            Text(
+                              '版本 0.1.0',
+                              style: TextStyle(
+                                color: textTertiary,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ]),
-
-                const SizedBox(height: 20),
-              ]),
-            ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildLangChip(String label, String lang, String current, WidgetRef ref, Color textPrimary, Color textTertiary) {
+  Widget _buildLangChip(
+    String label,
+    String lang,
+    String current,
+    WidgetRef ref,
+    Color textPrimary,
+    Color textTertiary,
+  ) {
     final isActive = current == lang;
-    return GestureDetector(
-      onTap: () => ref.read(localeProvider.notifier).state = Locale(lang),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
         decoration: BoxDecoration(
           color: isActive ? YYColors.accentPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(label, style: TextStyle(
-          color: isActive ? Colors.white : textTertiary,
-          fontSize: 11, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-        )),
+        child: InkWell(
+          onTap: () => ref.read(localeProvider.notifier).state = Locale(lang),
+          borderRadius: BorderRadius.circular(8),
+          overlayColor: WidgetStatePropertyAll(
+            isActive
+                ? Colors.white.withValues(alpha: 0.12)
+                : textPrimary.withValues(alpha: 0.05),
+          ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : textTertiary,
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -374,7 +575,8 @@ class SettingsPage extends ConsumerWidget {
         content: const Text('正在重新扫描音乐库...'),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? YYColors.bgElevated : YYLightColors.bgElevated,
+            ? YYColors.bgElevated
+            : YYLightColors.bgElevated,
       ),
     );
   }
@@ -387,63 +589,116 @@ class SettingsPage extends ConsumerWidget {
 
     showDialog(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) {
         return _BatchScrapeDialog(
           ref: ref,
           coverOnly: coverOnly,
-          bg: bg, pri: pri, tri: tri,
+          bg: bg,
+          pri: pri,
+          tri: tri,
         );
       },
     );
   }
 
-  void _showEngineSelector(BuildContext context, WidgetRef ref, String current,
-      Color bgElevated, Color textPrimary, Color textTertiary, Color separator) {
+  void _showEngineSelector(
+    BuildContext context,
+    WidgetRef ref,
+    String current,
+    Color bgElevated,
+    Color textPrimary,
+    Color textTertiary,
+    Color separator,
+  ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: bgElevated,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(YYRadius.xl)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('播放引擎', style: TextStyle(
-                  color: textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            Divider(height: 1, color: separator),
-            _EngineOption(
-              label: 'just_audio (原生)', desc: 'Apple 原生音频引擎，稳定省电',
-              isSelected: current == 'just_audio',
-              onTap: () { ref.read(settingsProvider.notifier).setEngine('just_audio'); Navigator.pop(ctx); },
-              textPrimary: textPrimary, textTertiary: textTertiary,
-            ),
-            _EngineOption(
-              label: 'media_kit (FFmpeg)', desc: '基于 FFmpeg，支持更多格式',
-              isSelected: current == 'media_kit',
-              onTap: () { ref.read(settingsProvider.notifier).setEngine('media_kit'); Navigator.pop(ctx); },
-              textPrimary: textPrimary, textTertiary: textTertiary,
-            ),
-            const SizedBox(height: 16),
-          ],
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: bgElevated,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(YYRadius.xl),
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: textTertiary.withValues(alpha: 0.32),
+                        borderRadius: BorderRadius.circular(YYRadius.full),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      '播放引擎',
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: separator),
+              _EngineOption(
+                label: 'just_audio (原生)',
+                desc: 'Apple 原生音频引擎，稳定省电',
+                isSelected: current == 'just_audio',
+                onTap: () {
+                  ref.read(settingsProvider.notifier).setEngine('just_audio');
+                  Navigator.pop(ctx);
+                },
+                textPrimary: textPrimary,
+                textTertiary: textTertiary,
+              ),
+              _EngineOption(
+                label: 'media_kit (FFmpeg)',
+                desc: '基于 FFmpeg，支持更多格式',
+                isSelected: current == 'media_kit',
+                onTap: () {
+                  ref.read(settingsProvider.notifier).setEngine('media_kit');
+                  Navigator.pop(ctx);
+                },
+                textPrimary: textPrimary,
+                textTertiary: textTertiary,
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  void _showClearCacheDialog(BuildContext context,
-      Color bgElevated, Color textPrimary, Color textSecondary, Color textTertiary) {
+  void _showClearCacheDialog(
+    BuildContext context,
+    Color bgElevated,
+    Color textPrimary,
+    Color textSecondary,
+    Color textTertiary,
+  ) {
     showDialog(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         backgroundColor: bgElevated,
         title: Text('清除缓存', style: TextStyle(color: textPrimary)),
-        content: Text('将清除最近播放记录和临时缓存文件。\n\n此操作不可撤销。',
-            style: TextStyle(color: textSecondary, fontSize: 14)),
+        content: Text(
+          '将清除最近播放记录和临时缓存文件。\n\n此操作不可撤销。',
+          style: TextStyle(color: textSecondary, fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -454,7 +709,10 @@ class SettingsPage extends ConsumerWidget {
               Navigator.pop(ctx);
               await _performClearCache(context);
             },
-            child: const Text('清除', style: TextStyle(color: YYColors.statusError)),
+            child: const Text(
+              '清除',
+              style: TextStyle(color: YYColors.statusError),
+            ),
           ),
         ],
       ),
@@ -468,18 +726,26 @@ class SettingsPage extends ConsumerWidget {
       final tempDir = await getTemporaryDirectory();
       if (tempDir.existsSync()) {
         for (final entity in tempDir.listSync()) {
-          try { await entity.delete(recursive: true); } catch (_) {}
+          try {
+            await entity.delete(recursive: true);
+          } catch (_) {}
         }
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('缓存已清除'), behavior: SnackBarBehavior.floating),
+          const SnackBar(
+            content: Text('缓存已清除'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('清除失败: $e'), behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text('清除失败: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -496,9 +762,12 @@ class _ThemeSegment extends StatelessWidget {
   final Color textTertiary;
 
   const _ThemeSegment({
-    required this.current, required this.onChanged,
-    required this.bgSurface, required this.bgElevated,
-    required this.textPrimary, required this.textTertiary,
+    required this.current,
+    required this.onChanged,
+    required this.bgSurface,
+    required this.bgElevated,
+    required this.textPrimary,
+    required this.textTertiary,
   });
 
   @override
@@ -522,19 +791,34 @@ class _ThemeSegment extends StatelessWidget {
 
   Widget _buildChip(String label, String mode) {
     final isActive = current == mode;
-    return GestureDetector(
-      onTap: () => onChanged(mode),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
         decoration: BoxDecoration(
           color: isActive ? YYColors.accentPrimary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(label, style: TextStyle(
-          color: isActive ? Colors.white : textTertiary,
-          fontSize: 11, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-        )),
+        child: InkWell(
+          onTap: () => onChanged(mode),
+          borderRadius: BorderRadius.circular(8),
+          overlayColor: WidgetStatePropertyAll(
+            isActive
+                ? Colors.white.withValues(alpha: 0.12)
+                : textPrimary.withValues(alpha: 0.05),
+          ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : textTertiary,
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -542,17 +826,97 @@ class _ThemeSegment extends StatelessWidget {
 
 // ──── Reusable Settings Components ────
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final Color color;
-  const _SectionTitle(this.title, this.color);
+class _SettingsSnapshotCard extends StatelessWidget {
+  const _SettingsSnapshotCard({
+    required this.themeMode,
+    required this.engine,
+    required this.songCount,
+    required this.sourceCount,
+    required this.sleepLabel,
+  });
+
+  final String themeMode;
+  final String engine;
+  final int songCount;
+  final int sourceCount;
+  final String sleepLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: YYSpacing.screenH, bottom: 8),
-      child: Text(title, style: TextStyle(
-          color: color, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+    final themeLabel = switch (themeMode) {
+      'system' => '跟随',
+      'dark' => '深色',
+      _ => '浅色',
+    };
+    final engineLabel = engine == 'just_audio' ? '原生' : 'FFmpeg';
+
+    return YYPanel(
+      color: context.yyBlend(YYColors.accentPrimary, amount: 0.08),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const YYIconBadge(
+                icon: CupertinoIcons.music_note_2,
+                color: YYColors.accentPrimary,
+                size: 52,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '猿音 Primuse',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '把播放、主题、曲库维护和连接入口整理成一个更清晰的偏好中心。',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          YYMetricBand(
+            items: [
+              YYMetricBandItem(
+                label: '曲库',
+                value: '$songCount 首',
+                tint: YYColors.accentPrimary,
+              ),
+              YYMetricBandItem(
+                label: '数据源',
+                value: '$sourceCount 个',
+                tint: YYColors.accentSecondary,
+              ),
+              YYMetricBandItem(
+                label: '主题',
+                value: themeLabel,
+                tint: YYColors.accentTertiary,
+              ),
+              YYMetricBandItem(
+                label: '睡眠',
+                value: sleepLabel,
+                tint: Colors.white,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '当前引擎：$engineLabel',
+            style: TextStyle(
+              color: context.yyTextSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -564,12 +928,10 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return YYPanel(
       margin: const EdgeInsets.symmetric(horizontal: YYSpacing.screenH),
-      decoration: BoxDecoration(
-        color: bgElevated,
-        borderRadius: BorderRadius.circular(YYRadius.md),
-      ),
+      padding: EdgeInsets.zero,
+      color: bgElevated.withValues(alpha: 0.94),
       child: Column(children: children),
     );
   }
@@ -586,42 +948,74 @@ class _SettingsRow extends StatelessWidget {
   final Color textTertiary;
 
   const _SettingsRow({
-    required this.icon, required this.iconColor, required this.title,
-    this.subtitle, this.onTap, this.showArrow = false,
-    required this.textPrimary, required this.textTertiary,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.subtitle,
+    this.onTap,
+    this.showArrow = false,
+    required this.textPrimary,
+    required this.textTertiary,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        overlayColor: WidgetStatePropertyAll(
+          textPrimary.withValues(alpha: 0.04),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
               ),
-              child: Icon(icon, color: iconColor, size: 16),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: textPrimary, fontSize: 15)),
-                  if (subtitle != null)
-                    Text(subtitle!, style: TextStyle(color: textTertiary, fontSize: 12)),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          subtitle!,
+                          style: TextStyle(
+                            color: textTertiary,
+                            fontSize: 12,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            if (showArrow)
-              Icon(CupertinoIcons.chevron_forward, color: textTertiary, size: 14),
-          ],
+              if (showArrow)
+                Icon(
+                  CupertinoIcons.chevron_forward,
+                  color: textTertiary,
+                  size: 14,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -637,32 +1031,59 @@ class _EngineOption extends StatelessWidget {
   final Color textTertiary;
 
   const _EngineOption({
-    required this.label, required this.desc,
-    required this.isSelected, required this.onTap,
-    required this.textPrimary, required this.textTertiary,
+    required this.label,
+    required this.desc,
+    required this.isSelected,
+    required this.onTap,
+    required this.textPrimary,
+    required this.textTertiary,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(color: textPrimary, fontSize: 15, fontWeight: FontWeight.w500)),
-                  Text(desc, style: TextStyle(color: textTertiary, fontSize: 12)),
-                ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        overlayColor: WidgetStatePropertyAll(
+          textPrimary.withValues(alpha: 0.04),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      desc,
+                      style: TextStyle(
+                        color: textTertiary,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (isSelected)
-              const Icon(CupertinoIcons.checkmark, color: YYColors.accentPrimary, size: 18),
-          ],
+              if (isSelected)
+                const Icon(
+                  CupertinoIcons.checkmark,
+                  color: YYColors.accentPrimary,
+                  size: 18,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -678,8 +1099,11 @@ class _BatchScrapeDialog extends StatefulWidget {
   final Color tri;
 
   const _BatchScrapeDialog({
-    required this.ref, required this.coverOnly,
-    required this.bg, required this.pri, required this.tri,
+    required this.ref,
+    required this.coverOnly,
+    required this.bg,
+    required this.pri,
+    required this.tri,
   });
 
   @override
@@ -709,7 +1133,10 @@ class _BatchScrapeDialogState extends State<_BatchScrapeDialog> {
     for (int i = 0; i < allSongs.length; i++) {
       if (_cancelled) break;
       final song = allSongs[i];
-      setState(() { _current = i + 1; _currentSong = song.title; });
+      setState(() {
+        _current = i + 1;
+        _currentSong = song.title;
+      });
 
       try {
         final enriched = await scraper.scrape(song);
@@ -749,26 +1176,41 @@ class _BatchScrapeDialogState extends State<_BatchScrapeDialog> {
               backgroundColor: widget.tri.withValues(alpha: 0.2),
             ),
             const SizedBox(height: 12),
-            Text('$_current / $_total', style: TextStyle(color: widget.pri, fontSize: 14)),
+            Text(
+              '$_current / $_total',
+              style: TextStyle(color: widget.pri, fontSize: 14),
+            ),
             const SizedBox(height: 4),
-            Text(_currentSong, style: TextStyle(color: widget.tri, fontSize: 12),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              _currentSong,
+              style: TextStyle(color: widget.tri, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ] else ...[
-            Text('已更新 $_updated / $_total 首歌曲',
-                style: TextStyle(color: widget.pri, fontSize: 14)),
+            Text(
+              '已更新 $_updated / $_total 首歌曲',
+              style: TextStyle(color: widget.pri, fontSize: 14),
+            ),
           ],
         ],
       ),
       actions: [
         if (!_done)
           TextButton(
-            onPressed: () { _cancelled = true; Navigator.pop(context); },
+            onPressed: () {
+              _cancelled = true;
+              Navigator.pop(context);
+            },
             child: Text('取消', style: TextStyle(color: widget.tri)),
           ),
         if (_done)
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('完成', style: TextStyle(color: YYColors.accentPrimary)),
+            child: const Text(
+              '完成',
+              style: TextStyle(color: YYColors.accentPrimary),
+            ),
           ),
       ],
     );

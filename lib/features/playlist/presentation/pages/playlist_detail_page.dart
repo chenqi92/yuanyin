@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../shared/services/shell_navigation_visibility.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../player/domain/entities/music_item.dart';
@@ -11,6 +12,7 @@ import '../../../player/presentation/providers/player_provider.dart';
 import '../../../library/data/services/music_database_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../data/services/playlist_service.dart';
+import '../../data/services/playlist_io_service.dart';
 
 const _playlistGradients = [
   [Color(0xFF667EEA), Color(0xFF764BA2)],
@@ -23,7 +25,7 @@ const _playlistGradients = [
   [Color(0xFF89F7FE), Color(0xFF66A6FF)],
 ];
 
-/// 歌单详情页 — 自适应亮暗主题
+/// 歌单详情页 — 自适应亮暗主题 + 拖拽排序
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   final String playlistId;
   const PlaylistDetailPage({super.key, required this.playlistId});
@@ -32,13 +34,19 @@ class PlaylistDetailPage extends ConsumerStatefulWidget {
   ConsumerState<PlaylistDetailPage> createState() => _PlaylistDetailPageState();
 }
 
-class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
+class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
+    with ConsumerShellNavigationVisibilityMixin {
   PlaylistEntity? _playlist;
   List<MusicItem> _songs = [];
   bool _isLoading = true;
+  bool _isReordering = false;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    hideShellNavigation();
+    _load();
+  }
 
   Future<void> _load() async {
     final service = ref.read(playlistServiceProvider);
@@ -55,7 +63,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
-    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
     final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
     final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
     final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
@@ -98,16 +105,40 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   icon: const Icon(CupertinoIcons.play_circle, size: 28),
                   onPressed: () => ref.read(playerProvider.notifier).playSong(_songs.first, queue: _songs),
                 ),
+              // 排序切换按钮
+              IconButton(
+                icon: Icon(
+                  _isReordering ? CupertinoIcons.checkmark : CupertinoIcons.arrow_up_arrow_down,
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _isReordering = !_isReordering),
+              ),
               IconButton(
                 icon: const Icon(CupertinoIcons.ellipsis, size: 22),
-                onPressed: () => _showOptions(context, card, pri),
+                onPressed: () => _showOptions(context),
               ),
             ],
           ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text('${_songs.length} 首歌曲', style: TextStyle(color: tri, fontSize: 13)),
+              child: Row(
+                children: [
+                  Text('${_songs.length} 首歌曲', style: TextStyle(color: tri, fontSize: 13)),
+                  if (_isReordering) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: YYColors.accentPrimary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('拖拽排序中', style: TextStyle(
+                        color: YYColors.accentPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           if (_songs.isEmpty)
@@ -115,61 +146,79 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               child: Center(child: Text('歌单是空的\n从歌曲列表添加歌曲到这里',
                   style: TextStyle(color: tri, fontSize: 14), textAlign: TextAlign.center)),
             ),
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 100),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final song = _songs[index];
-                  final isPlaying = playerState.currentSong?.id == song.id;
-                  return GestureDetector(
+          if (_isReordering)
+            SliverReorderableList(
+              itemCount: _songs.length,
+              onReorder: _onReorder,
+              itemBuilder: (context, index) {
+                final song = _songs[index];
+                final isPlaying = playerState.currentSong?.id == song.id;
+                return ReorderableDragStartListener(
+                  key: ValueKey(song.id),
+                  index: index,
+                  child: _SongTile(
+                    song: song,
+                    index: index,
+                    isPlaying: isPlaying,
+                    showDragHandle: true,
                     onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
                     onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      child: Row(
-                        children: [
-                          Text('${index + 1}', style: TextStyle(
-                              color: isPlaying ? YYColors.accentPrimary : tri, fontSize: 14),
-                              textAlign: TextAlign.center),
-                          const SizedBox(width: 14),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: SizedBox(width: 44, height: 44, child: GradientCover(seed: song.title, coverUrl: song.coverUrl, size: 44)),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(song.title, style: TextStyle(
-                                    color: isPlaying ? YYColors.accentPrimary : pri,
-                                    fontWeight: FontWeight.w500, fontSize: 15),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                                Text(song.artist, style: TextStyle(color: sub, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                          Text(song.durationText, style: TextStyle(color: tri, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  ).animate().fadeIn(delay: (30 * index).ms, duration: 300.ms);
-                },
-                childCount: _songs.length,
+                    pri: pri, sub: sub, tri: tri,
+                  ),
+                );
+              },
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.only(bottom: 28),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final song = _songs[index];
+                    final isPlaying = playerState.currentSong?.id == song.id;
+                    return _SongTile(
+                      key: ValueKey(song.id),
+                      song: song,
+                      index: index,
+                      isPlaying: isPlaying,
+                      showDragHandle: false,
+                      onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
+                      onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
+                      pri: pri, sub: sub, tri: tri,
+                    ).animate().fadeIn(delay: (30 * index).ms, duration: 300.ms);
+                  },
+                  childCount: _songs.length,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  void _showOptions(BuildContext context, Color card, Color pri) {
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex--;
+      final item = _songs.removeAt(oldIndex);
+      _songs.insert(newIndex, item);
+    });
+    // 异步持久化（+1 因为 ReorderableListView 的 convention）
+    ref.read(playlistsProvider.notifier).reorderSongs(
+      widget.playlistId,
+      oldIndex,
+      oldIndex < newIndex ? newIndex + 1 : newIndex,
+    );
+  }
+
+  void _showOptions(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
     final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: card,
       builder: (context) => SafeArea(
         child: Column(
@@ -179,6 +228,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
               leading: Icon(CupertinoIcons.pencil, color: pri),
               title: Text('重命名', style: TextStyle(color: pri)),
               onTap: () { Navigator.pop(context); _renamePlaylist(card, pri, tri); },
+            ),
+            ListTile(
+              leading: Icon(CupertinoIcons.share, color: pri),
+              title: Text('导出为 M3U', style: TextStyle(color: pri)),
+              onTap: () {
+                Navigator.pop(context);
+                _exportPlaylist();
+              },
             ),
             ListTile(
               leading: const Icon(CupertinoIcons.delete, color: Colors.redAccent),
@@ -195,10 +252,33 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     );
   }
 
+  Future<void> _exportPlaylist() async {
+    if (_playlist == null || _songs.isEmpty) return;
+    try {
+      final io = PlaylistIOService();
+      final filePath = await io.exportToM3U(_playlist!, _songs);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('歌单已导出到: $filePath'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
+  }
+
   void _renamePlaylist(Color card, Color pri, Color tri) {
     final controller = TextEditingController(text: _playlist?.name ?? '');
     showDialog(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         backgroundColor: card,
         title: Text('重命名歌单', style: TextStyle(color: pri)),
@@ -222,6 +302,81 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
             child: const Text('确认'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 歌曲条目
+class _SongTile extends StatelessWidget {
+  final MusicItem song;
+  final int index;
+  final bool isPlaying;
+  final bool showDragHandle;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final Color pri;
+  final Color sub;
+  final Color tri;
+
+  const _SongTile({
+    super.key,
+    required this.song,
+    required this.index,
+    required this.isPlaying,
+    required this.showDragHandle,
+    required this.onTap,
+    required this.onLongPress,
+    required this.pri,
+    required this.sub,
+    required this.tri,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            children: [
+              if (showDragHandle)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Icon(CupertinoIcons.line_horizontal_3, size: 18, color: tri),
+                )
+              else
+                SizedBox(
+                  width: 24,
+                  child: Text('${index + 1}', style: TextStyle(
+                      color: isPlaying ? YYColors.accentPrimary : tri, fontSize: 14),
+                      textAlign: TextAlign.center),
+                ),
+              const SizedBox(width: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(width: 44, height: 44, child: GradientCover(seed: song.title, coverUrl: song.coverUrl, size: 44)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(song.title, style: TextStyle(
+                        color: isPlaying ? YYColors.accentPrimary : pri,
+                        fontWeight: FontWeight.w500, fontSize: 15),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(song.artist, style: TextStyle(color: sub, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Text(song.durationText, style: TextStyle(color: tri, fontSize: 12)),
+            ],
+          ),
+        ),
       ),
     );
   }

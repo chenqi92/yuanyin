@@ -174,6 +174,18 @@ class PlaylistsNotifier extends StateNotifier<PlaylistsState> {
     await _service.save(playlist.copyWith(name: newName));
     await _load();
   }
+
+  /// 重新排序歌单中的歌曲
+  Future<void> reorderSongs(String playlistId, int oldIndex, int newIndex) async {
+    final playlist = await _service.getById(playlistId);
+    if (playlist == null) return;
+    final ids = List<String>.from(playlist.songIds);
+    if (newIndex > oldIndex) newIndex--;
+    final item = ids.removeAt(oldIndex);
+    ids.insert(newIndex, item);
+    await _service.save(playlist.copyWith(songIds: ids));
+    await _load();
+  }
 }
 
 /// Providers

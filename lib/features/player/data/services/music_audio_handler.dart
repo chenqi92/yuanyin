@@ -27,6 +27,10 @@ class MusicAudioHandler extends BaseAudioHandler
   AudioPlayer _player = AudioPlayer();
   AudioPlayer? _playerB; // 交叉淡化第二播放器
 
+  // Android 均衡器
+  AndroidEqualizer? _androidEqualizer;
+  bool _eqEnabled = false;
+
   Uint8List? _currentArtworkData;
   MusicItem? _currentMusicItem;
   final List<MusicItem> _musicQueue = [];
@@ -67,6 +71,21 @@ class MusicAudioHandler extends BaseAudioHandler
 
     // 广播初始 playbackState
     _broadcastState(PlaybackEvent());
+
+    // 初始化 Android 均衡器
+    if (Platform.isAndroid) {
+      _androidEqualizer = AndroidEqualizer();
+      _player = AudioPlayer(
+        audioPipeline: AudioPipeline(androidAudioEffects: [_androidEqualizer!]),
+      );
+      // 重新绑定流
+      _player.playbackEventStream.listen(_broadcastState);
+      _player.durationStream.listen((duration) {
+        if (duration != null && mediaItem.value != null) {
+          mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+        }
+      });
+    }
 
     _log.i('MusicAudioHandler: 初始化完成');
   }
@@ -386,6 +405,33 @@ class MusicAudioHandler extends BaseAudioHandler
     WidgetsBinding.instance.removeObserver(this);
     await _player.dispose();
     await _playerB?.dispose();
+  }
+
+  // ==================== 均衡器 ====================
+
+  /// 设置均衡器增益
+  ///
+  /// Android: 通过 AndroidEqualizer 应用
+  /// iOS: just_audio 不支持原生 EQ，静默跳过
+  Future<void> setEqualizerGains(List<double> gains, bool enabled) async {
+    _eqEnabled = enabled;
+    if (Platform.isAndroid && _androidEqualizer != null) {
+      await _androidEqualizer!.setEnabled(enabled);
+      if (enabled) {
+        final params = await _androidEqualizer!.parameters;
+        final bands = params.bands;
+        for (int i = 0; i < bands.length && i < gains.length; i++) {
+          // AndroidEqualizer 增益范围通常是 -1500 到 +1500 (毫贝尔)
+          // 我们的增益范围是 -12 到 +12 dB，换算: dB * 100 = 毫贝尔
+          final gainMb = (gains[i] * 100).round();
+          final minLevel = params.minDecibels.round() * 100;
+          final maxLevel = params.maxDecibels.round() * 100;
+          final clampedGain = gainMb.clamp(minLevel, maxLevel);
+          await bands[i].setGain(clampedGain.toDouble() / 100);
+        }
+      }
+    }
+    // iOS: 静默跳过（just_audio 不支持 DarwinEqualizer）
   }
 }
 

@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/music_audio_handler.dart';
+import '../../data/services/media_kit_audio_handler.dart';
+import '../../data/services/audio_handler_interface.dart';
 import '../../domain/entities/music_item.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../favorites/data/services/favorites_service.dart';
@@ -72,17 +75,81 @@ class PlayerState {
 
 /// 播放器 StateNotifier
 class PlayerNotifier extends StateNotifier<PlayerState> {
-  final MusicAudioHandler? _audioHandler;
+  IMusicAudioHandler? _audioHandler;
   final Ref _ref;
   final List<StreamSubscription> _subscriptions = [];
+  String _currentEngine = 'justAudio';
 
   PlayerNotifier(this._audioHandler, this._ref) : super(const PlayerState()) {
     if (_audioHandler != null) {
       _setupStreams();
       // 同步交叉淡化设置
       final settings = _ref.read(settingsProvider);
-      _audioHandler.setCrossfadeDuration(settings.crossfadeDuration);
+      _currentEngine = settings.engine;
+      if (_audioHandler is MusicAudioHandler) {
+        (_audioHandler as MusicAudioHandler).setCrossfadeDuration(settings.crossfadeDuration);
+      }
     }
+  }
+
+  /// 切换播放引擎
+  Future<void> switchEngine(String engineName) async {
+    if (engineName == _currentEngine) return;
+
+    // 停止当前播放
+    if (state.isPlaying) {
+      _audioHandler?.pause();
+    }
+
+    // 释放旧的流订阅
+    for (final sub in _subscriptions) { sub.cancel(); }
+    _subscriptions.clear();
+
+    // 保存当前状态（歌曲和队列）
+    final savedSong = state.currentSong;
+    final savedQueue = state.queue;
+    final savedIndex = state.queueIndex;
+
+    // 重置播放状态
+    state = state.copyWith(
+      isPlaying: false,
+      position: Duration.zero,
+      isBuffering: false,
+    );
+
+    // 创建新的音频 handler
+    IMusicAudioHandler? newHandler;
+    try {
+      if (engineName == 'mediaKit') {
+        newHandler = MediaKitAudioHandler();
+      } else {
+        newHandler = await initAudioHandler();
+      }
+    } catch (e) {
+      debugPrint('切换引擎失败: $e');
+      return;
+    }
+
+    // dispose 旧 handler
+    try {
+      await _audioHandler?.dispose();
+    } catch (_) {}
+
+    _audioHandler = newHandler;
+    _currentEngine = engineName;
+
+    // 更新全局 provider
+    _ref.read(audioHandlerProvider.notifier).state = newHandler;
+
+    // 重新设置流
+    _setupStreams();
+
+    // 恢复队列（不恢复播放位置）
+    if (savedQueue.isNotEmpty && newHandler != null) {
+      newHandler.setQueue(savedQueue, startIndex: savedIndex);
+    }
+
+    debugPrint('引擎已切换到: $engineName');
   }
 
   void _setupStreams() {
@@ -164,12 +231,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     state = state.copyWith(isFavorite: isFav);
 
     if (_audioHandler != null) {
-      await _audioHandler.prepareForNewTrack();
-      await _audioHandler.setCurrentMusic(song);
+      await _audioHandler!.prepareForNewTrack();
+      await _audioHandler!.setCurrentMusic(song);
       if (song.filePath != null) {
         final uri = Uri.file(song.filePath!).toString();
-        await _audioHandler.setAudioSource(uri);
-        await _audioHandler.play();
+        await _audioHandler!.setAudioSource(uri);
+        await _audioHandler!.play();
       }
     } else {
       state = state.copyWith(isPlaying: true);
@@ -179,7 +246,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void togglePlay() {
     if (!state.hasSong) return;
     if (_audioHandler != null) {
-      state.isPlaying ? _audioHandler.pause() : _audioHandler.play();
+      state.isPlaying ? _audioHandler!.pause() : _audioHandler!.play();
     } else {
       state = state.copyWith(isPlaying: !state.isPlaying);
     }
@@ -269,9 +336,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   void _onTrackCompleted() {
     switch (state.playMode) {
-      case PlayMode.loop: next();
-      case PlayMode.single: seek(Duration.zero); _audioHandler?.play();
-      case PlayMode.shuffle: next();
+      case PlayMode.loop:
+        next();
+        break;
+      case PlayMode.single:
+        seek(Duration.zero);
+        _audioHandler?.play();
+        break;
+      case PlayMode.shuffle:
+        next();
+        break;
     }
   }
 
@@ -290,8 +364,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 }
 
-/// Providers
-final audioHandlerProvider = Provider<MusicAudioHandler?>((ref) => null);
+/// 可变的 audioHandler provider（支持引擎运行时切换）
+final audioHandlerProvider = StateProvider<IMusicAudioHandler?>((ref) => null);
 
 final playerProvider =
     StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {

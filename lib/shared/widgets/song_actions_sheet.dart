@@ -22,6 +22,7 @@ void showSongActions(
 
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     backgroundColor: sheetBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -177,6 +178,7 @@ void _showPlaylistPicker(BuildContext context, WidgetRef ref, MusicItem song) {
 
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     backgroundColor: sheetBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -221,6 +223,7 @@ void _showSongDetails(BuildContext context, MusicItem song) {
 
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     backgroundColor: sheetBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -290,6 +293,7 @@ void _scrapeMetadata(BuildContext context, WidgetRef ref, MusicItem song) {
 
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     backgroundColor: sheetBg,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -388,4 +392,3 @@ class _ScrapeProgressState extends ConsumerState<_ScrapeProgress> {
     );
   }
 }
-

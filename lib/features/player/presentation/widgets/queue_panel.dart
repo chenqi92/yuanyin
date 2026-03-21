@@ -1,15 +1,18 @@
+import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/theme/theme.dart';
-import '../../../../shared/widgets/gradient_cover.dart';
+import '../../../../shared/widgets/modern_music_ui.dart';
 import '../../domain/entities/music_item.dart';
 import '../providers/player_provider.dart';
 
-/// 播放队列面板 — 自适应亮暗主题
 void showQueuePanel(BuildContext context) {
   showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => const _QueueSheet(),
@@ -22,153 +25,207 @@ class _QueueSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(playerProvider);
-    final queue = state.queue;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-    final sep = isDark ? YYColors.separator : YYLightColors.separator;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.65,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) => Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+      initialChildSize: 0.72,
+      minChildSize: 0.42,
+      maxChildSize: 0.94,
+      builder: (context, scrollController) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(YYRadius.bottomSheet),
+          ),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(
+              decoration: BoxDecoration(
+                color: YYColors.bgGlassThickSolid.withValues(alpha: 0.96),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(YYRadius.bottomSheet),
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                ),
+              ),
               child: Column(
                 children: [
-                  Container(
-                    width: 36, height: 4,
-                    decoration: BoxDecoration(color: tri, borderRadius: BorderRadius.circular(2)),
-                  ),
                   const SizedBox(height: 12),
+                  Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: YYColors.textTertiary.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(YYRadius.full),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('播放队列', style: TextStyle(color: pri, fontSize: 20, fontWeight: FontWeight.bold)),
-                        Text('${queue.length} 首', style: TextStyle(color: tri, fontSize: 14)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '播放队列',
+                                style: Theme.of(context).textTheme.headlineMedium,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${state.queue.length} 首歌曲 · 拖动调整顺序',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                        YYPillButton(
+                          label: '关闭',
+                          compact: true,
+                          onTap: () => Navigator.pop(context),
+                        ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: state.queue.isEmpty
+                        ? Center(
+                            child: Text(
+                              '队列为空',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          )
+                        : ReorderableListView.builder(
+                            scrollController: scrollController,
+                            padding: const EdgeInsets.only(
+                              left: 0,
+                              right: 0,
+                              top: 0,
+                              bottom: 28,
+                            ),
+                            itemCount: state.queue.length,
+                            onReorder: (oldIndex, newIndex) {
+                              ref.read(playerProvider.notifier)
+                                  .reorderQueue(oldIndex, newIndex);
+                            },
+                            proxyDecorator: (child, index, animation) {
+                              return Material(
+                                color: Colors.transparent,
+                                child: child,
+                              );
+                            },
+                            itemBuilder: (context, index) {
+                              final song = state.queue[index];
+                              final current = index == state.queueIndex;
+
+                              return _QueueItem(
+                                key: ValueKey('${song.id}_$index'),
+                                index: index,
+                                song: song,
+                                current: current,
+                                isPlaying: current && state.isPlaying,
+                                onTap: () {
+                                  ref.read(playerProvider.notifier)
+                                      .playSong(song, queue: state.queue);
+                                  Navigator.pop(context);
+                                },
+                                onDismissed: () => ref
+                                    .read(playerProvider.notifier)
+                                    .removeFromQueue(index),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
             ),
-            Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: 20), color: sep),
-            Expanded(
-              child: queue.isEmpty
-                  ? Center(child: Text('队列为空', style: TextStyle(color: tri, fontSize: 15)))
-                  : ReorderableListView.builder(
-                      scrollController: scrollController,
-                      padding: const EdgeInsets.only(bottom: 40),
-                      itemCount: queue.length,
-                      onReorder: (oldIndex, newIndex) =>
-                          ref.read(playerProvider.notifier).reorderQueue(oldIndex, newIndex),
-                      proxyDecorator: (child, index, animation) =>
-                          Material(color: Colors.transparent, child: child),
-                      itemBuilder: (context, index) {
-                        final song = queue[index];
-                        final isCurrent = index == state.queueIndex;
-                        return _QueueItem(
-                          key: ValueKey('${song.id}_$index'),
-                          song: song, index: index, isCurrent: isCurrent,
-                          isPlaying: isCurrent && state.isPlaying,
-                          onTap: () {
-                            ref.read(playerProvider.notifier).playSong(song, queue: queue);
-                            Navigator.pop(context);
-                          },
-                          onDismissed: () => ref.read(playerProvider.notifier).removeFromQueue(index),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _QueueItem extends StatelessWidget {
-  final MusicItem song;
   final int index;
-  final bool isCurrent;
+  final MusicItem song;
+  final bool current;
   final bool isPlaying;
   final VoidCallback onTap;
   final VoidCallback onDismissed;
 
   const _QueueItem({
-    super.key, required this.song, required this.index,
-    required this.isCurrent, required this.isPlaying,
-    required this.onTap, required this.onDismissed,
+    super.key,
+    required this.index,
+    required this.song,
+    required this.current,
+    required this.isPlaying,
+    required this.onTap,
+    required this.onDismissed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-
     return Dismissible(
-      key: ValueKey('dismiss_${song.id}_$index'),
+      key: ValueKey('queue-dismiss-${song.id}-$index'),
       direction: DismissDirection.endToStart,
       onDismissed: (_) => onDismissed(),
       background: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: YYColors.statusError.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(YYRadius.lg),
+        ),
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: Colors.redAccent.withValues(alpha: 0.3),
-        child: const Icon(CupertinoIcons.delete, color: Colors.redAccent, size: 20),
+        child: const Icon(
+          CupertinoIcons.delete_solid,
+          color: YYColors.statusError,
+        ),
       ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: YYTrackRow(
+        song: song,
+        active: current,
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          color: isCurrent ? YYColors.accentPrimary.withValues(alpha: 0.08) : Colors.transparent,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                child: isCurrent
-                    ? Icon(isPlaying ? CupertinoIcons.waveform : CupertinoIcons.pause_fill,
-                        color: YYColors.accentPrimary, size: 16)
-                    : Text('${index + 1}', style: TextStyle(color: tri, fontSize: 14),
-                        textAlign: TextAlign.center),
-              ),
-              const SizedBox(width: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(width: 40, height: 40, child: GradientCover(seed: song.title, coverUrl: song.coverUrl, size: 40)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(song.title, style: TextStyle(
-                        color: isCurrent ? YYColors.accentPrimary : pri,
-                        fontWeight: FontWeight.w500, fontSize: 15),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text(song.artist, style: TextStyle(color: sub, fontSize: 12),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
+        leading: SizedBox(
+          width: 26,
+          child: current
+              ? Icon(
+                  isPlaying
+                      ? CupertinoIcons.waveform
+                      : CupertinoIcons.pause_circle_fill,
+                  color: YYColors.accentPrimary,
+                  size: 18,
+                )
+              : Text(
+                  '${index + 1}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: context.yyTextTertiary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              song.durationText,
+              style: TextStyle(
+                color: context.yyTextTertiary,
+                fontSize: 12,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              Text(song.durationText, style: TextStyle(color: tri, fontSize: 12)),
-              const SizedBox(width: 8),
-              Icon(CupertinoIcons.line_horizontal_3, color: tri, size: 18),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              CupertinoIcons.line_horizontal_3,
+              color: context.yyTextTertiary,
+              size: 18,
+            ),
+          ],
         ),
       ),
     );

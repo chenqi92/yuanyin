@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../app/theme/theme.dart';
 
 /// 智能封面组件
 ///
@@ -32,7 +32,7 @@ class SmartCover extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _GradientFallback(
+          errorBuilder: (context, error, stackTrace) => _GradientFallback(
             seed: seed, size: size, borderRadius: borderRadius),
         ),
       );
@@ -56,29 +56,29 @@ class _GradientFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hash = seed.hashCode;
-    final random = Random(hash);
-    final hue1 = random.nextDouble() * 360;
-    final hue2 = (hue1 + 40 + random.nextDouble() * 80) % 360;
-    final color1 = HSLColor.fromAHSL(1.0, hue1, 0.65, 0.45).toColor();
-    final color2 = HSLColor.fromAHSL(1.0, hue2, 0.7, 0.35).toColor();
-
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color1, color2],
-        ),
+        gradient: YYSeedPalette.gradient(seed),
       ),
       child: Center(
-        child: Icon(
-          Icons.music_note_rounded,
-          color: Colors.white.withValues(alpha: 0.4),
-          size: size * 0.4,
+        child: Container(
+          width: size * 0.38,
+          height: size * 0.38,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(size * 0.14),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.10),
+            ),
+          ),
+          child: Icon(
+            Icons.graphic_eq_rounded,
+            color: Colors.white.withValues(alpha: 0.78),
+            size: size * 0.20,
+          ),
         ),
       ),
     );

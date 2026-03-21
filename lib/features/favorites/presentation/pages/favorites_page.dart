@@ -107,7 +107,7 @@ class _FavoritesPageState extends ConsumerState<FavoritesPage> {
             ),
           if (!_isLoading && _songs.isNotEmpty)
             SliverPadding(
-              padding: const EdgeInsets.only(bottom: 160),
+              padding: const EdgeInsets.only(bottom: 28),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {

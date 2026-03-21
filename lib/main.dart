@@ -8,31 +8,82 @@ import 'app/l10n/strings.dart';
 import 'features/player/data/services/music_audio_handler.dart';
 import 'features/player/presentation/providers/player_provider.dart';
 import 'features/settings/data/services/settings_service.dart';
+import 'shared/services/native_tab_bar_service.dart';
 import 'shared/widgets/macos_menu_bar.dart';
 
+import 'dart:async';
+
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (details) {
+      FlutterError.dumpErrorToConsole(details);
+      runApp(MaterialApp(
+        home: Scaffold(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'FlutterError:\n${details.exceptionAsString()}\n\n${details.stack}',
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      ));
+    };
 
-  // 初始化 Hive
-  await Hive.initFlutter();
+    NativeTabBarService.instance.initialize();
 
-  // 初始化 AudioHandler（后台播放 + 系统媒体控制）
-  MusicAudioHandler? audioHandler;
-  try {
-    audioHandler = await initAudioHandler();
-  } catch (e) {
-    debugPrint('AudioHandler 初始化失败: $e');
-  }
+    // 初始化 Hive
+    await Hive.initFlutter();
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        if (audioHandler != null)
-          audioHandlerProvider.overrideWithValue(audioHandler),
-      ],
-      child: const PrimuseApp(),
-    ),
-  );
+    // 初始化 AudioHandler（后台播放 + 系统媒体控制）
+    MusicAudioHandler? audioHandler;
+    try {
+      audioHandler = await initAudioHandler();
+    } catch (e, st) {
+      debugPrint('AudioHandler 初始化失败: $e');
+      runApp(MaterialApp(
+        home: Scaffold(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'AudioHandler Error:\n$e\n\n$st',
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      ));
+      return;
+    }
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          if (audioHandler != null)
+            audioHandlerProvider.overrideWith((ref) => audioHandler),
+        ],
+        child: const PrimuseApp(),
+      ),
+    );
+  }, (error, stack) {
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Uncaught Error:\n$error\n\n$stack',
+              style: const TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+        ),
+      ),
+    ));
+  });
 }
 
 /// Primuse App 根组件 — 支持 light/dark/system 主题切换 + i18n
@@ -41,9 +92,12 @@ class PrimuseApp extends ConsumerWidget {
 
   ThemeMode _resolveThemeMode(String mode) {
     switch (mode) {
-      case 'light': return ThemeMode.light;
-      case 'dark': return ThemeMode.dark;
-      default: return ThemeMode.system;
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
     }
   }
 
@@ -72,4 +126,3 @@ class PrimuseApp extends ConsumerWidget {
     );
   }
 }
-

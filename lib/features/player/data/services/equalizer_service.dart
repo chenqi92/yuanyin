@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:logger/logger.dart';
+import '../../../player/presentation/providers/player_provider.dart';
+import 'music_audio_handler.dart';
 
 final _log = Logger(printer: SimplePrinter());
 
@@ -87,21 +89,24 @@ class EqualizerState {
   }
 }
 
-/// Notifier
+/// Notifier — 桥接 EQ 增益到播放引擎
 class EqualizerNotifier extends StateNotifier<EqualizerState> {
   final EqualizerService _service;
+  final Ref _ref;
 
-  EqualizerNotifier(this._service) : super(const EqualizerState()) {
+  EqualizerNotifier(this._service, this._ref) : super(const EqualizerState()) {
     _load();
   }
 
   Future<void> _load() async {
     state = await _service.getState();
+    _applyToEngine();
   }
 
   Future<void> setEnabled(bool enabled) async {
     state = state.copyWith(enabled: enabled);
     await _service.saveState(state);
+    _applyToEngine();
   }
 
   Future<void> setPreset(String name) async {
@@ -109,6 +114,7 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
     if (gains != null) {
       state = state.copyWith(presetName: name, gains: List.from(gains));
       await _service.saveState(state);
+      _applyToEngine();
     }
   }
 
@@ -117,11 +123,25 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
     gains[index] = gain.clamp(-12.0, 12.0);
     state = state.copyWith(presetName: '自定义', gains: gains);
     await _service.saveState(state);
+    _applyToEngine();
   }
 
   Future<void> resetAll() async {
     state = const EqualizerState();
     await _service.saveState(state);
+    _applyToEngine();
+  }
+
+  /// 将 EQ 增益应用到音频引擎
+  void _applyToEngine() {
+    try {
+      final handler = _ref.read(audioHandlerProvider);
+      if (handler is MusicAudioHandler) {
+        handler.setEqualizerGains(state.gains, state.enabled);
+      }
+    } catch (_) {
+      // audioHandler 尚未初始化或不支持
+    }
   }
 }
 
@@ -130,5 +150,5 @@ final equalizerServiceProvider = Provider((ref) => EqualizerService());
 
 final equalizerProvider =
     StateNotifierProvider<EqualizerNotifier, EqualizerState>((ref) {
-  return EqualizerNotifier(ref.watch(equalizerServiceProvider));
+  return EqualizerNotifier(ref.watch(equalizerServiceProvider), ref);
 });

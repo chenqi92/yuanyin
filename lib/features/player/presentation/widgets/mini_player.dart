@@ -1,99 +1,157 @@
-import 'dart:math';
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
+import 'queue_panel.dart';
 import '../providers/player_provider.dart';
 
-/// 迷你播放器 — v2 自适应亮暗主题
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(playerProvider);
-    if (!state.hasSong) return const SizedBox.shrink();
+    final song = state.currentSong;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final sep = isDark ? YYColors.separator : YYLightColors.separator;
-
-    final song = state.currentSong!;
-    final progress = state.duration.inMilliseconds > 0
-        ? (state.position.inMilliseconds / state.duration.inMilliseconds).clamp(0.0, 1.0)
-        : 0.0;
+    if (song == null) {
+      return const SizedBox.shrink();
+    }
 
     return GestureDetector(
       onTap: () => context.push('/player'),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: 2,
-            child: Stack(
-              children: [
-                Container(color: sep),
-                FractionallySizedBox(
-                  widthFactor: progress,
-                  child: Container(decoration: const BoxDecoration(gradient: YYColors.accentGradient)),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            height: YYSizes.miniPlayerHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Hero(
-                  tag: 'cover',
-                  child: _RotatingCover(seed: song.title, coverUrl: song.coverUrl, isPlaying: state.isPlaying),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(song.title,
-                          style: TextStyle(color: pri, fontSize: 14, fontWeight: FontWeight.w500),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text(song.artist,
-                          style: TextStyle(color: sub, fontSize: 12),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => ref.read(playerProvider.notifier).togglePlay(),
-                  child: Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      gradient: YYColors.accentGradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        state.isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
-                        key: ValueKey(state.isPlaying),
-                        color: Colors.white, size: 18,
-                      ),
+      onLongPress: () => showQueuePanel(context),
+      child: SizedBox(
+        height: YYSizes.miniPlayerHeight,
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Hero(
+                    tag: 'mini-player-cover',
+                    child: _RotatingCover(
+                      seed: '${song.title}_${song.artist}',
+                      coverUrl: song.coverUrl,
+                      isPlaying: state.isPlaying,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => ref.read(playerProvider.notifier).next(),
-                  child: Icon(CupertinoIcons.forward_fill, color: sub, size: 20),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.yyTextPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          song.album.isEmpty
+                              ? song.artist
+                              : '${song.artist} · ${song.album}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.yyTextSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _MiniControl(
+                    icon: state.isPlaying
+                        ? CupertinoIcons.pause_fill
+                        : CupertinoIcons.play_fill,
+                    primary: true,
+                    onTap: () => ref.read(playerProvider.notifier).togglePlay(),
+                  ),
+                  const SizedBox(width: 6),
+                  _MiniControl(
+                    icon: CupertinoIcons.list_bullet_below_rectangle,
+                    onTap: () => showQueuePanel(context),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(YYRadius.full),
+              child: LinearProgressIndicator(
+                value: state.progress,
+                minHeight: 3,
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  YYSeedPalette.primary(song.title),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniControl extends StatelessWidget {
+  final IconData icon;
+  final bool primary;
+  final VoidCallback onTap;
+
+  const _MiniControl({
+    required this.icon,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        width: primary ? 34 : 32,
+        height: primary ? 34 : 32,
+        decoration: BoxDecoration(
+          gradient: primary && context.isDark ? YYColors.accentGradient : null,
+          color: primary
+              ? primary && !context.isDark
+                    ? YYColors.accentPrimary
+                    : null
+              : context.yyBgSurface.withValues(
+                  alpha: context.isDark ? 0.22 : 0.34,
+                ),
+          borderRadius: BorderRadius.circular(YYRadius.full),
+          border: Border.all(
+            color: primary
+                ? Colors.transparent
+                : context.isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.05),
           ),
-        ],
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(YYRadius.full),
+          child: Icon(
+            icon,
+            color: primary ? Colors.white : context.yyTextPrimary,
+            size: primary ? 17 : 16,
+          ),
+        ),
       ),
     );
   }
@@ -103,20 +161,31 @@ class _RotatingCover extends StatefulWidget {
   final String seed;
   final String? coverUrl;
   final bool isPlaying;
-  const _RotatingCover({required this.seed, this.coverUrl, required this.isPlaying});
+
+  const _RotatingCover({
+    required this.seed,
+    this.coverUrl,
+    required this.isPlaying,
+  });
 
   @override
   State<_RotatingCover> createState() => _RotatingCoverState();
 }
 
-class _RotatingCoverState extends State<_RotatingCover> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _RotatingCoverState extends State<_RotatingCover>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(duration: const Duration(seconds: 12), vsync: this);
-    if (widget.isPlaying) _controller.repeat();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 16),
+      vsync: this,
+    );
+    if (widget.isPlaying) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -124,28 +193,52 @@ class _RotatingCoverState extends State<_RotatingCover> with SingleTickerProvide
     super.didUpdateWidget(oldWidget);
     if (widget.isPlaying && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.isPlaying && _controller.isAnimating) {
+    }
+    if (!widget.isPlaying && _controller.isAnimating) {
       _controller.stop();
     }
   }
 
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,
-      builder: (context, child) => Transform.rotate(
-        angle: _controller.value * 2 * pi,
-        child: child,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(YYRadius.coverSmall),
-        child: SizedBox(
-          width: YYSizes.miniCoverSize,
-          height: YYSizes.miniCoverSize,
-          child: GradientCover(seed: widget.seed, coverUrl: widget.coverUrl, size: YYSizes.miniCoverSize),
+      builder: (context, child) {
+        return Transform.rotate(
+          angle: _controller.value * 2 * math.pi,
+          child: child,
+        );
+      },
+      child: Container(
+        width: YYSizes.miniCoverSize,
+        height: YYSizes.miniCoverSize,
+        padding: const EdgeInsets.all(1.5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: YYSeedPalette.gradient(widget.seed),
+          boxShadow: [
+            BoxShadow(
+              offset: const Offset(0, 10),
+              blurRadius: 24,
+              spreadRadius: -16,
+              color: Colors.black.withValues(alpha: 0.55),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12.5),
+          child: GradientCover(
+            seed: widget.seed,
+            coverUrl: widget.coverUrl,
+            size: YYSizes.miniCoverSize,
+            borderRadius: 12.5,
+          ),
         ),
       ),
     );

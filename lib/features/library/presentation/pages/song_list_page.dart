@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../shared/services/shell_navigation_visibility.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../player/domain/entities/music_item.dart';
@@ -33,7 +34,8 @@ class SongListPage extends ConsumerStatefulWidget {
   ConsumerState<SongListPage> createState() => _SongListPageState();
 }
 
-class _SongListPageState extends ConsumerState<SongListPage> {
+class _SongListPageState extends ConsumerState<SongListPage>
+    with ConsumerShellNavigationVisibilityMixin {
   List<MusicItem> _songs = [];
   bool _isLoading = true;
   _SortMode _sortMode = _SortMode.original;
@@ -41,6 +43,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   @override
   void initState() {
     super.initState();
+    hideShellNavigation();
     _load();
   }
 
@@ -55,7 +58,6 @@ class _SongListPageState extends ConsumerState<SongListPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
     final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
     final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
     final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
 
@@ -116,7 +118,7 @@ class _SongListPageState extends ConsumerState<SongListPage> {
             ),
           if (!_isLoading)
             SliverPadding(
-              padding: const EdgeInsets.only(bottom: 160),
+              padding: const EdgeInsets.only(bottom: 28),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
@@ -156,10 +158,21 @@ class _SongListPageState extends ConsumerState<SongListPage> {
   void _applySorting() {
     _originalOrder ??= List.from(_songs);
     switch (_sortMode) {
-      case _SortMode.original: _songs = List.from(_originalOrder!);
-      case _SortMode.title: _songs.sort((a, b) => a.title.compareTo(b.title));
-      case _SortMode.artist: _songs.sort((a, b) => a.artist.compareTo(b.artist));
-      case _SortMode.duration: _songs.sort((a, b) => (a.duration?.inMilliseconds ?? 0).compareTo(b.duration?.inMilliseconds ?? 0));
+      case _SortMode.original:
+        _songs = List.from(_originalOrder!);
+        break;
+      case _SortMode.title:
+        _songs.sort((a, b) => a.title.compareTo(b.title));
+        break;
+      case _SortMode.artist:
+        _songs.sort((a, b) => a.artist.compareTo(b.artist));
+        break;
+      case _SortMode.duration:
+        _songs.sort(
+          (a, b) => (a.duration?.inMilliseconds ?? 0)
+              .compareTo(b.duration?.inMilliseconds ?? 0),
+        );
+        break;
     }
   }
 }
