@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
 import '../providers/player_provider.dart';
+import '../widgets/queue_panel.dart';
+import '../../../lyric/presentation/pages/lyrics_page.dart';
 
 /// 全屏播放页 (UI 规范 §3.3)
 ///
@@ -63,7 +65,7 @@ class NowPlayingPage extends ConsumerWidget {
             child: Column(
               children: [
                 // 顶部栏
-                _TopBar(sourceName: song.format ?? '猿音'),
+                _TopBar(sourceName: song.format ?? 'Primuse'),
 
                 const Spacer(flex: 1),
 
@@ -87,6 +89,7 @@ class NowPlayingPage extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(YYRadius.coverLarge),
                         child: GradientCover(
                           seed: '${song.title}_${song.artist}',
+                          coverUrl: song.coverUrl,
                           size: coverSize,
                           borderRadius: YYRadius.coverLarge,
                         ),
@@ -462,60 +465,81 @@ class _MainControls extends StatelessWidget {
   }
 }
 
-/// 底部操作栏 — 歌词入口/队列入口
-class _BottomActions extends StatelessWidget {
+/// 底部操作栏 — 歌词/均衡器/AirPlay/队列
+class _BottomActions extends ConsumerWidget {
   const _BottomActions();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          // 歌词入口
-          GestureDetector(
-            onTap: () {
-              // TODO: 歌词页
-            },
-            child: const Icon(
-              CupertinoIcons.quote_bubble,
-              size: 22,
-              color: YYColors.textSecondary,
-            ),
-          ),
-
-          // 音频引擎指示
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              'Hi-Res',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: YYColors.textTertiary,
-                letterSpacing: 0.5,
+          // 音量滑块
+          Row(
+            children: [
+              const Icon(CupertinoIcons.volume_off, size: 14, color: YYColors.textTertiary),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                    activeTrackColor: YYColors.textSecondary,
+                    inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+                    thumbColor: YYColors.textPrimary,
+                  ),
+                  child: Slider(
+                    value: playerState.volume,
+                    min: 0, max: 1,
+                    onChanged: (v) => ref.read(playerProvider.notifier).setVolume(v),
+                  ),
+                ),
               ),
-            ),
+              const Icon(CupertinoIcons.volume_up, size: 14, color: YYColors.textTertiary),
+            ],
           ),
-
-          // 队列入口
-          GestureDetector(
-            onTap: () {
-              // TODO: 队列页
-            },
-            child: const Icon(
-              CupertinoIcons.list_bullet,
-              size: 22,
-              color: YYColors.textSecondary,
-            ),
+          const SizedBox(height: 8),
+          // 功能按钮行
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // 歌词入口
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => const LyricsPage(),
+                  ));
+                },
+                child: const Icon(CupertinoIcons.quote_bubble, size: 22, color: YYColors.textSecondary),
+              ),
+              // 均衡器
+              GestureDetector(
+                onTap: () => context.push('/equalizer'),
+                child: const Icon(CupertinoIcons.waveform_path_ecg, size: 22, color: YYColors.textSecondary),
+              ),
+              // AirPlay 标识
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('Hi-Res',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: YYColors.textTertiary, letterSpacing: 0.5)),
+              ),
+              // 队列入口
+              GestureDetector(
+                onTap: () => showQueuePanel(context),
+                child: const Icon(CupertinoIcons.list_bullet, size: 22, color: YYColors.textSecondary),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 }
+

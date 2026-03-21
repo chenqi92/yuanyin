@@ -4,6 +4,8 @@ import '../../data/services/music_audio_handler.dart';
 import '../../domain/entities/music_item.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../favorites/data/services/favorites_service.dart';
+import '../../../settings/data/services/settings_service.dart';
+import '../../../library/data/services/play_stats_service.dart';
 
 /// 播放模式
 enum PlayMode { loop, single, shuffle }
@@ -77,6 +79,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   PlayerNotifier(this._audioHandler, this._ref) : super(const PlayerState()) {
     if (_audioHandler != null) {
       _setupStreams();
+      // 同步交叉淡化设置
+      final settings = _ref.read(settingsProvider);
+      _audioHandler.setCrossfadeDuration(settings.crossfadeDuration);
     }
   }
 
@@ -151,6 +156,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // 记录最近播放
     _ref.read(libraryProvider.notifier).recordPlay(song);
 
+    // 记录播放统计
+    _ref.read(playStatsProvider).recordPlay(song.id, duration: song.duration);
+
     // 检查收藏状态
     final isFav = await _ref.read(favoritesServiceProvider).isFavorite(song.id);
     state = state.copyWith(isFavorite: isFav);
@@ -209,12 +217,70 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     state = state.copyWith(isFavorite: isFav);
   }
 
+  /// 重排队列
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) newIndex--;
+    final queue = [...state.queue];
+    final item = queue.removeAt(oldIndex);
+    queue.insert(newIndex, item);
+
+    // 修正当前播放索引
+    int newQueueIndex = state.queueIndex;
+    if (oldIndex == state.queueIndex) {
+      newQueueIndex = newIndex;
+    } else if (oldIndex < state.queueIndex && newIndex >= state.queueIndex) {
+      newQueueIndex--;
+    } else if (oldIndex > state.queueIndex && newIndex <= state.queueIndex) {
+      newQueueIndex++;
+    }
+
+    state = state.copyWith(queue: queue, queueIndex: newQueueIndex);
+    _audioHandler?.setQueue(queue, startIndex: newQueueIndex);
+  }
+
+  /// 从队列移除
+  void removeFromQueue(int index) {
+    if (index < 0 || index >= state.queue.length) return;
+    if (state.queue.length == 1) return; // 不允许移除最后一首
+    final queue = [...state.queue];
+    queue.removeAt(index);
+
+    int newQueueIndex = state.queueIndex;
+    if (index < state.queueIndex) {
+      newQueueIndex--;
+    } else if (index == state.queueIndex) {
+      // 移除的是当前播放项，播放队列中的下一首
+      if (newQueueIndex >= queue.length) newQueueIndex = 0;
+      state = state.copyWith(queue: queue, queueIndex: newQueueIndex);
+      _playAtIndex(newQueueIndex);
+      return;
+    }
+    state = state.copyWith(queue: queue, queueIndex: newQueueIndex);
+  }
+
+  /// 下一首播放（插入到当前曲后面）
+  void addNextInQueue(MusicItem song) {
+    final queue = [...state.queue];
+    final insertIndex = state.queueIndex + 1;
+    queue.insert(insertIndex.clamp(0, queue.length), song);
+    state = state.copyWith(queue: queue);
+    _audioHandler?.setQueue(queue, startIndex: state.queueIndex);
+  }
+
   void _onTrackCompleted() {
     switch (state.playMode) {
       case PlayMode.loop: next();
       case PlayMode.single: seek(Duration.zero); _audioHandler?.play();
       case PlayMode.shuffle: next();
     }
+  }
+
+  /// 设置音量
+  void setVolume(double vol) {
+    final clamped = vol.clamp(0.0, 1.0);
+    state = state.copyWith(volume: clamped);
+    _audioHandler?.setVolume(clamped);
+    _ref.read(settingsProvider.notifier).setVolume(clamped);
   }
 
   @override

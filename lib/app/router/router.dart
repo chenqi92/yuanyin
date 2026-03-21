@@ -6,11 +6,14 @@ import '../../features/library/presentation/pages/library_page.dart';
 import '../../features/search/presentation/pages/search_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/player/presentation/pages/now_playing_page.dart';
+import '../../features/player/presentation/pages/equalizer_page.dart';
 import '../../features/sources/presentation/pages/sources_page.dart';
+import '../../features/favorites/presentation/pages/favorites_page.dart';
+import '../../features/library/presentation/pages/play_stats_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// 猿音路由配置 — 4 Tab + 全屏播放页 + 子页面
+/// Primuse 路由配置 — 4 Tab + 全屏播放页 + 子页面
 final goRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
@@ -41,6 +44,24 @@ final goRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       path: '/sources',
       builder: (context, state) => const SourcesPage(),
+    ),
+    // 收藏页
+    GoRoute(
+      parentNavigatorKey: _rootNavigatorKey,
+      path: '/favorites',
+      builder: (context, state) => const FavoritesPage(),
+    ),
+    // 均衡器页
+    GoRoute(
+      parentNavigatorKey: _rootNavigatorKey,
+      path: '/equalizer',
+      builder: (context, state) => const EqualizerPage(),
+    ),
+    // 播放统计页
+    GoRoute(
+      parentNavigatorKey: _rootNavigatorKey,
+      path: '/stats',
+      builder: (context, state) => const PlayStatsPage(),
     ),
     // 底部 Tab 路由
     StatefulShellRoute.indexedStack(

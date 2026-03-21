@@ -5,13 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'theme/theme.dart';
 import '../features/player/presentation/widgets/mini_player.dart';
+import '../shared/widgets/keyboard_shortcuts.dart';
 
-/// 全局容器 — 实现 UI 规范 §3.1 的视觉层级
-///
-/// 三层结构：
-/// 1. (底层) Tab 页内容
-/// 2. (中间层) Mini 播放器
-/// 3. (顶层) 底部导航 TabBar（Liquid Glass 厚玻璃）
+/// 全局容器 — 三层：Tab 内容 + MiniPlayer + TabBar
 class AppShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -19,27 +15,27 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: YYColors.bgBase,
-      body: Stack(
-        children: [
-          // 层 1: Tab 内容
-          navigationShell,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
 
-          // 层 2+3: Mini Player + TabBar（合体区域）
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _BottomArea(
-              currentIndex: navigationShell.currentIndex,
-              onTabTap: (index) => navigationShell.goBranch(
-                index,
-                initialLocation: index == navigationShell.currentIndex,
+    return KeyboardShortcuts(
+      child: Scaffold(
+        backgroundColor: bg,
+        body: Stack(
+          children: [
+            navigationShell,
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: _BottomArea(
+                currentIndex: navigationShell.currentIndex,
+                onTabTap: (index) => navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -49,69 +45,29 @@ class _BottomArea extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTabTap;
 
-  const _BottomArea({
-    required this.currentIndex,
-    required this.onTabTap,
-  });
+  const _BottomArea({required this.currentIndex, required this.onTabTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
+    final sep = isDark ? YYColors.separator : YYLightColors.separator;
+
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: YYBlur.thick, sigmaY: YYBlur.thick),
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
         child: Container(
           decoration: BoxDecoration(
-            // 多层渐变模拟厚玻璃深度
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                YYColors.bgGlassThick,
-                Color.alphaBlend(
-                  Colors.black.withValues(alpha: 0.08),
-                  YYColors.bgGlassThick,
-                ),
-              ],
-            ),
-            // 顶部高光边 — 模拟 Liquid Glass 光线折射
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.12),
-                width: 0.5,
-              ),
-            ),
+            color: bg.withValues(alpha: 0.85),
+            border: Border(top: BorderSide(color: sep, width: 0.5)),
           ),
           child: SafeArea(
             top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 顶部微光条
-                Container(
-                  height: 1,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.0),
-                        Colors.white.withValues(alpha: 0.08),
-                        Colors.white.withValues(alpha: 0.0),
-                      ],
-                    ),
-                  ),
-                ),
-                // Mini Player
                 const MiniPlayer(),
-                // Separator
-                Container(
-                  height: 0.5,
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  color: Colors.white.withValues(alpha: 0.06),
-                ),
-                // TabBar
-                _TabBar(
-                  currentIndex: currentIndex,
-                  onTap: onTabTap,
-                ),
+                _TabBar(currentIndex: currentIndex, onTap: onTabTap),
               ],
             ),
           ),
@@ -136,6 +92,9 @@ class _TabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
     return SizedBox(
       height: YYSizes.tabBarHeight,
       child: Row(
@@ -150,43 +109,25 @@ class _TabBar extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 选中指示器 — 小型 Glass 胶囊
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOutCubic,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isActive ? 16 : 0,
-                      vertical: isActive ? 6 : 0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? YYColors.accentPrimary.withValues(alpha: 0.12)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                      border: isActive
-                          ? Border.all(
-                              color: YYColors.accentPrimary.withValues(alpha: 0.2),
-                              width: 0.5,
-                            )
-                          : null,
-                    ),
-                    child: Icon(
-                      isActive ? tab.activeIcon : tab.icon,
-                      size: 22,
-                      color: isActive
-                          ? YYColors.accentPrimary
-                          : YYColors.textTertiary,
-                    ),
+                  Icon(
+                    isActive ? tab.activeIcon : tab.icon,
+                    size: 22,
+                    color: isActive ? YYColors.accentPrimary : tri,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    tab.label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                      color: isActive
-                          ? YYColors.accentPrimary
-                          : YYColors.textTertiary,
+                  const SizedBox(height: 3),
+                  Text(tab.label, style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                    color: isActive ? YYColors.accentPrimary : tri,
+                  )),
+                  const SizedBox(height: 3),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: isActive ? 4 : 0,
+                    height: isActive ? 4 : 0,
+                    decoration: const BoxDecoration(
+                      color: YYColors.accentPrimary,
+                      shape: BoxShape.circle,
                     ),
                   ),
                 ],
@@ -203,6 +144,5 @@ class _TabItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-
   const _TabItem({required this.icon, required this.activeIcon, required this.label});
 }

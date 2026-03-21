@@ -1,5 +1,5 @@
 name: yuanyin
-description: "猿音 - 高品质 NAS 音乐播放器"
+description: "Primuse - Premium NAS Music Player"
 publish_to: "none"
 version: 0.1.0+1
 
@@ -9,13 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # UI
   cupertino_icons: ^1.0.8
   flutter_animate: ^4.5.2
   gap: ^3.0.1
   cached_network_image: ^3.4.1
-  google_fonts: ^6.2.1
 
   # State Management
   flutter_riverpod: ^2.6.1

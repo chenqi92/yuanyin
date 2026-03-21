@@ -1,4 +1,4 @@
-# Miscellaneous
+# ── Miscellaneous ──
 *.class
 *.log
 *.pyc
@@ -11,35 +11,91 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+Thumbs.db
 
-# IntelliJ related
+# ── IDE ──
 *.iml
 *.ipr
 *.iws
 .idea/
+.vscode/
+*.code-workspace
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# ── Flutter / Dart / Pub ──
 **/doc/api/
-**/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+pubspec.lock
 
-# Symbolication related
+# ── iOS / Xcode ──
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Runner.xcworkspace/xcshareddata/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/ServiceDefinitions.json
+
+# ── macOS / Xcode ──
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/.symlinks/
+**/macos/Runner.xcworkspace/xcuserdata/
+**/macos/Runner.xcodeproj/xcuserdata/
+**/macos/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+
+# ── Android ──
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/GeneratedPluginRegistrant.java
+**/android/key.properties
+*.jks
+*.keystore
+
+# ── Web ──
+**/web/favicon.png
+
+# ── Symbolication ──
 app.*.symbols
 
-# Obfuscation related
+# ── Obfuscation ──
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# ── Code Signing ──
+*.mobileprovision
+*.p12
+*.cer
+*.pem
+
+# ── Test & Coverage ──
+coverage/
+test/.test_coverage.dart
+.test_runner/
+
+# ── FVM (Flutter Version Management) ──
+.fvm/flutter_sdk
+.fvm/fvm_config.json
+
+# ── Gemini / AI agent ──
+.gemini/
+.agent/
+.agents/

@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:logger/logger.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../../../player/domain/entities/music_item.dart';
 
 final _log = Logger(printer: SimplePrinter());
@@ -14,13 +17,20 @@ const _audioExtensions = {
 
 /// 本地文件扫描器
 ///
-/// 递归扫描指定目录，提取音频文件元数据并构建 MusicItem 列表。
+/// 递归扫描指定目录，提取音频文件元数据（含封面）并构建 MusicItem 列表。
 class LocalFileScanner {
+  String? _coverCacheDir;
+
+  /// 获取封面缓存目录
+  Future<String> _ensureCoverCacheDir() async {
+    if (_coverCacheDir != null) return _coverCacheDir!;
+    final appDir = await getApplicationSupportDirectory();
+    _coverCacheDir = p.join(appDir.path, 'cover_cache');
+    await Directory(_coverCacheDir!).create(recursive: true);
+    return _coverCacheDir!;
+  }
+
   /// 扫描指定目录下的所有音频文件
-  ///
-  /// [directoryPath] 扫描根目录
-  /// [onProgress] 进度回调 (已扫描数, 当前文件名)
-  /// 返回扫描到的歌曲列表
   Future<List<MusicItem>> scan(
     String directoryPath, {
     void Function(int count, String currentFile)? onProgress,
@@ -30,6 +40,9 @@ class LocalFileScanner {
       _log.w('扫描目录不存在: $directoryPath');
       return [];
     }
+
+    // 预先初始化封面缓存目录
+    await _ensureCoverCacheDir();
 
     final songs = <MusicItem>[];
     int count = 0;
@@ -58,15 +71,16 @@ class LocalFileScanner {
     return songs;
   }
 
-  /// 解析单个音频文件的元数据
+  /// 解析单个音频文件的元数据（含封面提取）
   Future<MusicItem?> _parseAudioFile(File file) async {
     try {
-      final metadata = readMetadata(file, getImage: false);
+      // ★ getImage: true — 提取嵌入封面
+      final metadata = readMetadata(file, getImage: true);
 
       final fileName = file.path.split('/').last;
       final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
 
-      // 尝试从文件名解析艺术家和标题（格式: "艺术家 - 标题"）
+      // 从文件名解析艺术家和标题
       String fallbackTitle = nameWithoutExt;
       String? fallbackArtist;
       if (nameWithoutExt.contains(' - ')) {
@@ -75,16 +89,26 @@ class LocalFileScanner {
         fallbackTitle = parts.sublist(1).join(' - ').trim();
       }
 
+      final songId = file.path.hashCode.toRadixString(36);
+
+      // 提取并缓存封面
+      String? coverUrl;
+      if (metadata.pictures.isNotEmpty) {
+        final picture = metadata.pictures.first;
+        coverUrl = await _saveCover(songId, picture.bytes);
+      }
+
       return MusicItem(
-        id: file.path.hashCode.toRadixString(36),
+        id: songId,
         title: metadata.title ?? fallbackTitle,
         artist: metadata.artist ?? fallbackArtist ?? '未知艺术家',
         album: metadata.album ?? '未知专辑',
         duration: metadata.duration,
+        coverUrl: coverUrl,
         filePath: file.path,
         fileSize: await file.length(),
         format: _getExtension(file.path).replaceFirst('.', '').toUpperCase(),
-        year: metadata.year,
+        year: metadata.year?.year,
         trackNumber: metadata.trackNumber,
         genre: metadata.genres.isNotEmpty ? metadata.genres.first : null,
         bitrate: metadata.bitrate,
@@ -92,7 +116,6 @@ class LocalFileScanner {
       );
     } catch (e) {
       _log.w('读取元数据失败: ${file.path} - $e');
-      // 如果元数据读取失败，仍然创建基础 MusicItem
       final fileName = file.path.split('/').last;
       final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
       return MusicItem(
@@ -105,6 +128,29 @@ class LocalFileScanner {
         format: _getExtension(file.path).replaceFirst('.', '').toUpperCase(),
       );
     }
+  }
+
+  /// 保存封面到缓存
+  Future<String?> _saveCover(String songId, Uint8List imageData) async {
+    if (imageData.isEmpty) return null;
+    try {
+      final ext = _detectImageExt(imageData);
+      final filePath = p.join(_coverCacheDir!, '$songId.$ext');
+      final file = File(filePath);
+      if (await file.exists()) return filePath;
+      await file.writeAsBytes(imageData);
+      return filePath;
+    } catch (e) {
+      _log.w('保存封面失败 ($songId): $e');
+      return null;
+    }
+  }
+
+  /// 检测图片格式
+  String _detectImageExt(Uint8List data) {
+    if (data.length >= 3 && data[0] == 0xFF && data[1] == 0xD8) return 'jpg';
+    if (data.length >= 4 && data[0] == 0x89 && data[1] == 0x50) return 'png';
+    return 'jpg';
   }
 
   String _getExtension(String path) {

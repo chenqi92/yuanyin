@@ -34,6 +34,9 @@ class SettingsService {
 
   Future<double> getCrossfadeDuration() async => (await get<double>('crossfade')) ?? 0;
   Future<void> setCrossfadeDuration(double d) => set('crossfade', d);
+
+  Future<String> getThemeMode() async => (await get<String>('themeMode')) ?? 'system';
+  Future<void> setThemeMode(String m) => set('themeMode', m);
 }
 
 /// 应用设置状态
@@ -42,12 +45,14 @@ class AppSettings {
   final int playModeIndex;
   final String engine;
   final double crossfadeDuration;
+  final String themeMode; // 'light', 'dark', 'system'
 
   const AppSettings({
     this.volume = 1.0,
     this.playModeIndex = 0,
     this.engine = 'justAudio',
     this.crossfadeDuration = 0,
+    this.themeMode = 'system',
   });
 
   AppSettings copyWith({
@@ -55,12 +60,14 @@ class AppSettings {
     int? playModeIndex,
     String? engine,
     double? crossfadeDuration,
+    String? themeMode,
   }) {
     return AppSettings(
       volume: volume ?? this.volume,
       playModeIndex: playModeIndex ?? this.playModeIndex,
       engine: engine ?? this.engine,
       crossfadeDuration: crossfadeDuration ?? this.crossfadeDuration,
+      themeMode: themeMode ?? this.themeMode,
     );
   }
 }
@@ -79,6 +86,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       playModeIndex: await _service.getPlayModeIndex(),
       engine: await _service.getEngine(),
       crossfadeDuration: await _service.getCrossfadeDuration(),
+      themeMode: await _service.getThemeMode(),
     );
   }
 
@@ -100,6 +108,11 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setCrossfade(double duration) async {
     await _service.setCrossfadeDuration(duration);
     state = state.copyWith(crossfadeDuration: duration);
+  }
+
+  Future<void> setThemeMode(String mode) async {
+    await _service.setThemeMode(mode);
+    state = state.copyWith(themeMode: mode);
   }
 }
 

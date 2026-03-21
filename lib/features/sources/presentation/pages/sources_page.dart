@@ -3,56 +3,58 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/theme.dart';
-import '../../../../shared/widgets/glass_widgets.dart';
 import '../../domain/entities/source_entity.dart';
 import '../providers/source_provider.dart';
 
-/// 数据源管理页面
+/// 数据源管理页面 — 自适应亮暗主题
 class SourcesPage extends ConsumerWidget {
   const SourcesPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sourcesProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
+    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
+    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
 
     return Scaffold(
-      backgroundColor: YYColors.bgBase,
+      backgroundColor: bg,
       appBar: AppBar(
         title: const Text('数据源管理'),
         backgroundColor: Colors.transparent,
-        foregroundColor: YYColors.textPrimary,
+        foregroundColor: pri,
         actions: [
           IconButton(
             icon: const Icon(CupertinoIcons.plus, size: 22),
-            onPressed: () => _showAddSheet(context, ref),
+            onPressed: () => _showAddSheet(context, ref, card, pri, tri),
           ),
         ],
       ),
       body: state.sources.isEmpty
-          ? _EmptyState(onAdd: () => _showAddSheet(context, ref))
+          ? _EmptyState(onAdd: () => _showAddSheet(context, ref, card, pri, tri))
           : ListView(
               padding: const EdgeInsets.only(bottom: 100),
               children: [
-                // 扫描进度
                 if (state.isScanning)
                   _ScanProgress(count: state.scannedCount, file: state.scanningFile ?? ''),
-
-                // 源列表
                 ...state.sources.map((source) => _SourceTile(
                   source: source,
                   onRescan: () => ref.read(sourcesProvider.notifier).scanSource(source.id),
-                  onDelete: () => _confirmDelete(context, ref, source),
+                  onDelete: () => _confirmDelete(context, ref, source, card, pri, sub),
                 )),
               ],
             ),
     );
   }
 
-  void _showAddSheet(BuildContext context, WidgetRef ref) {
+  void _showAddSheet(BuildContext context, WidgetRef ref, Color card, Color pri, Color tri) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: YYColors.bgGlassThick,
+      backgroundColor: card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -60,14 +62,15 @@ class SourcesPage extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, SourceEntity source) {
+  void _confirmDelete(BuildContext context, WidgetRef ref, SourceEntity source,
+      Color card, Color pri, Color sub) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: YYColors.bgGlassThick,
-        title: const Text('删除数据源', style: TextStyle(color: YYColors.textPrimary)),
+        backgroundColor: card,
+        title: Text('删除数据源', style: TextStyle(color: pri)),
         content: Text('确定删除 "${source.name}" 及其所有歌曲？',
-            style: const TextStyle(color: YYColors.textSecondary)),
+            style: TextStyle(color: sub)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
@@ -89,16 +92,20 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(CupertinoIcons.folder_badge_plus, size: 56, color: YYColors.textTertiary),
+          Icon(CupertinoIcons.folder_badge_plus, size: 56, color: tri),
           const SizedBox(height: 16),
-          const Text('还没有数据源', style: TextStyle(color: YYColors.textSecondary, fontSize: 16)),
+          Text('还没有数据源', style: TextStyle(color: sub, fontSize: 16)),
           const SizedBox(height: 8),
-          const Text('添加本地目录、WebDAV 或 NAS 来获取音乐',
-              style: TextStyle(color: YYColors.textTertiary, fontSize: 13)),
+          Text('添加本地目录、WebDAV 或 NAS 来获取音乐',
+              style: TextStyle(color: tri, fontSize: 13)),
           const SizedBox(height: 24),
           GestureDetector(
             onTap: onAdd,
@@ -125,8 +132,18 @@ class _ScanProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      tintColor: YYColors.accentPrimary,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: card,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           const SizedBox(
@@ -138,9 +155,9 @@ class _ScanProgress extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('正在扫描... $count 个文件', style: const TextStyle(
-                    color: YYColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
-                Text(file, style: const TextStyle(color: YYColors.textTertiary, fontSize: 11),
+                Text('正在扫描... $count 个文件', style: TextStyle(
+                    color: pri, fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(file, style: TextStyle(color: tri, fontSize: 11),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
@@ -178,7 +195,16 @@ class _SourceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
+    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
           Icon(_typeIcon, color: YYColors.accentPrimary, size: 28),
@@ -187,18 +213,15 @@ class _SourceTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(source.name, style: const TextStyle(
-                    color: YYColors.textPrimary, fontWeight: FontWeight.w500, fontSize: 15)),
+                Text(source.name, style: TextStyle(color: pri, fontWeight: FontWeight.w500, fontSize: 15)),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Container(
-                      width: 6, height: 6,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: _statusColor),
-                    ),
+                    Container(width: 6, height: 6,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: _statusColor)),
                     const SizedBox(width: 6),
                     Text('${source.typeDisplayName} · ${source.songCount} 首',
-                        style: const TextStyle(color: YYColors.textTertiary, fontSize: 12)),
+                        style: TextStyle(color: tri, fontSize: 12)),
                   ],
                 ),
               ],
@@ -206,7 +229,7 @@ class _SourceTile extends StatelessWidget {
           ),
           GestureDetector(
             onTap: onRescan,
-            child: const Icon(CupertinoIcons.arrow_2_circlepath, color: YYColors.textSecondary, size: 18),
+            child: Icon(CupertinoIcons.arrow_2_circlepath, color: sub, size: 18),
           ),
           const SizedBox(width: 12),
           GestureDetector(
@@ -220,7 +243,6 @@ class _SourceTile extends StatelessWidget {
 }
 
 // ---- 添加数据源底部弹窗 ----
-
 class _AddSourceSheet extends StatefulWidget {
   final WidgetRef ref;
   const _AddSourceSheet({required this.ref});
@@ -230,7 +252,7 @@ class _AddSourceSheet extends StatefulWidget {
 }
 
 class _AddSourceSheetState extends State<_AddSourceSheet> {
-  int _selectedType = 0; // 0=本地, 1=WebDAV, 2=群晖
+  int _selectedType = 0;
   final _nameCtrl = TextEditingController();
   final _pathCtrl = TextEditingController();
   final _hostCtrl = TextEditingController();
@@ -240,17 +262,18 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _pathCtrl.dispose();
-    _hostCtrl.dispose();
-    _portCtrl.dispose();
-    _userCtrl.dispose();
-    _passCtrl.dispose();
+    _nameCtrl.dispose(); _pathCtrl.dispose(); _hostCtrl.dispose();
+    _portCtrl.dispose(); _userCtrl.dispose(); _passCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+    final surface = isDark ? YYColors.bgSurface : YYLightColors.bgSurface;
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
@@ -259,57 +282,54 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(
-                  color: YYColors.textTertiary, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
+            Center(child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: tri, borderRadius: BorderRadius.circular(2)),
+            )),
             const SizedBox(height: 16),
-            const Text('添加数据源', style: TextStyle(
-                color: YYColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('添加数据源', style: TextStyle(color: pri, fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-
-            // 类型选择
             CupertinoSlidingSegmentedControl<int>(
               groupValue: _selectedType,
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
+              backgroundColor: surface,
               thumbColor: YYColors.accentPrimary.withValues(alpha: 0.3),
-              children: const {
-                0: Padding(padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text('本地', style: TextStyle(color: YYColors.textPrimary, fontSize: 13))),
-                1: Padding(padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text('WebDAV', style: TextStyle(color: YYColors.textPrimary, fontSize: 13))),
-                2: Padding(padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text('群晖', style: TextStyle(color: YYColors.textPrimary, fontSize: 13))),
+              children: {
+                0: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Text('本地', style: TextStyle(color: pri, fontSize: 13))),
+                1: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Text('WebDAV', style: TextStyle(color: pri, fontSize: 13))),
+                2: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Text('群晖', style: TextStyle(color: pri, fontSize: 13))),
+                3: Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Text('SMB', style: TextStyle(color: pri, fontSize: 13))),
               },
               onValueChanged: (v) => setState(() => _selectedType = v ?? 0),
             ),
             const SizedBox(height: 16),
-
-            // 名称
-            _field(_nameCtrl, '数据源名称', CupertinoIcons.tag),
-
-            // 按类型显示不同表单
+            _field(_nameCtrl, '数据源名称', CupertinoIcons.tag, pri, tri, surface),
             if (_selectedType == 0) ...[
-              _field(_pathCtrl, '目录路径 (/path/to/music)', CupertinoIcons.folder),
+              _field(_pathCtrl, '目录路径 (/path/to/music)', CupertinoIcons.folder, pri, tri, surface),
             ],
             if (_selectedType == 1) ...[
-              _field(_pathCtrl, 'WebDAV URL (https://...)', CupertinoIcons.globe),
-              _field(_userCtrl, '用户名 (可选)', CupertinoIcons.person),
-              _field(_passCtrl, '密码 (可选)', CupertinoIcons.lock, obscure: true),
+              _field(_pathCtrl, 'WebDAV URL (https://...)', CupertinoIcons.globe, pri, tri, surface),
+              _field(_userCtrl, '用户名 (可选)', CupertinoIcons.person, pri, tri, surface),
+              _field(_passCtrl, '密码 (可选)', CupertinoIcons.lock, pri, tri, surface, obscure: true),
             ],
             if (_selectedType == 2) ...[
-              _field(_hostCtrl, 'NAS 地址 (192.168.1.100)', CupertinoIcons.desktopcomputer),
-              _field(_portCtrl, '端口 (默认 5000)', CupertinoIcons.number),
-              _field(_userCtrl, '用户名', CupertinoIcons.person),
-              _field(_passCtrl, '密码', CupertinoIcons.lock, obscure: true),
-              _field(_pathCtrl, '共享文件夹路径 (/music)', CupertinoIcons.folder),
+              _field(_hostCtrl, 'NAS 地址 (192.168.1.100)', CupertinoIcons.desktopcomputer, pri, tri, surface),
+              _field(_portCtrl, '端口 (默认 5000)', CupertinoIcons.number, pri, tri, surface),
+              _field(_userCtrl, '用户名', CupertinoIcons.person, pri, tri, surface),
+              _field(_passCtrl, '密码', CupertinoIcons.lock, pri, tri, surface, obscure: true),
+              _field(_pathCtrl, '共享文件夹路径 (/music)', CupertinoIcons.folder, pri, tri, surface),
             ],
-
+            if (_selectedType == 3) ...[
+              _field(_hostCtrl, 'SMB 主机地址 (192.168.1.100)', CupertinoIcons.desktopcomputer, pri, tri, surface),
+              _field(_portCtrl, '端口 (默认 445)', CupertinoIcons.number, pri, tri, surface),
+              _field(_userCtrl, '用户名 (可选)', CupertinoIcons.person, pri, tri, surface),
+              _field(_passCtrl, '密码 (可选)', CupertinoIcons.lock, pri, tri, surface, obscure: true),
+              _field(_pathCtrl, '共享路径 (/share/music)', CupertinoIcons.folder, pri, tri, surface),
+            ],
             const SizedBox(height: 16),
-            // 添加按钮
             SizedBox(
               width: double.infinity,
               child: CupertinoButton(
@@ -326,27 +346,24 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String hint, IconData icon, {bool obscure = false}) {
+  Widget _field(TextEditingController ctrl, String hint, IconData icon,
+      Color pri, Color tri, Color surface, {bool obscure = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(10),
-        ),
+        decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(10)),
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Icon(icon, color: YYColors.textTertiary, size: 18),
+            Icon(icon, color: tri, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: TextField(
                 controller: ctrl,
                 obscureText: obscure,
-                style: const TextStyle(color: YYColors.textPrimary, fontSize: 15),
+                style: TextStyle(color: pri, fontSize: 15),
                 decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle: const TextStyle(color: YYColors.textTertiary),
+                  hintText: hint, hintStyle: TextStyle(color: tri),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -362,33 +379,20 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
     final name = _nameCtrl.text.trim();
     final path = _pathCtrl.text.trim();
     if (name.isEmpty || path.isEmpty) return;
-
     final notifier = widget.ref.read(sourcesProvider.notifier);
-
     switch (_selectedType) {
-      case 0: // 本地
-        notifier.addLocalSource(name, path);
-        break;
-      case 1: // WebDAV
-        notifier.addWebDavSource(
-          name: name,
-          url: path,
+      case 0: notifier.addLocalSource(name, path);
+      case 1: notifier.addWebDavSource(name: name, url: path,
           username: _userCtrl.text.trim().isNotEmpty ? _userCtrl.text.trim() : null,
-          password: _passCtrl.text.trim().isNotEmpty ? _passCtrl.text.trim() : null,
-        );
-        break;
-      case 2: // 群晖
-        notifier.addSynologySource(
-          name: name,
-          host: _hostCtrl.text.trim(),
+          password: _passCtrl.text.trim().isNotEmpty ? _passCtrl.text.trim() : null);
+      case 2: notifier.addSynologySource(name: name, host: _hostCtrl.text.trim(),
           port: int.tryParse(_portCtrl.text.trim()) ?? 5000,
-          username: _userCtrl.text.trim(),
-          password: _passCtrl.text.trim(),
-          folderPath: path,
-        );
-        break;
+          username: _userCtrl.text.trim(), password: _passCtrl.text.trim(), folderPath: path);
+      case 3: notifier.addSmbSource(name: name, host: _hostCtrl.text.trim(),
+          port: int.tryParse(_portCtrl.text.trim()) ?? 445,
+          username: _userCtrl.text.trim().isNotEmpty ? _userCtrl.text.trim() : null,
+          password: _passCtrl.text.trim().isNotEmpty ? _passCtrl.text.trim() : null, sharePath: path);
     }
-
     Navigator.pop(context);
   }
 }

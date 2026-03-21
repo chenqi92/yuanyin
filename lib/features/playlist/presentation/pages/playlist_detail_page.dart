@@ -4,15 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../app/theme/theme.dart';
-import '../../../../shared/widgets/glass_widgets.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
+import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../player/domain/entities/music_item.dart';
 import '../../../player/presentation/providers/player_provider.dart';
 import '../../../library/data/services/music_database_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../data/services/playlist_service.dart';
 
-/// 歌单渐变色列表
 const _playlistGradients = [
   [Color(0xFF667EEA), Color(0xFF764BA2)],
   [Color(0xFFF093FB), Color(0xFFF5576C)],
@@ -24,7 +23,7 @@ const _playlistGradients = [
   [Color(0xFF89F7FE), Color(0xFF66A6FF)],
 ];
 
-/// 歌单详情页
+/// 歌单详情页 — 自适应亮暗主题
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   final String playlistId;
   const PlaylistDetailPage({super.key, required this.playlistId});
@@ -39,33 +38,32 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
   bool _isLoading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final service = ref.read(playlistServiceProvider);
     final db = ref.read(musicDatabaseProvider);
     final playlist = await service.getById(widget.playlistId);
     if (playlist == null) { Navigator.pop(context); return; }
-
     final allSongs = await db.getAllSongs();
     final songMap = {for (final s in allSongs) s.id: s};
-    final songs = playlist.songIds
-        .where((id) => songMap.containsKey(id))
-        .map((id) => songMap[id]!)
-        .toList();
-
+    final songs = playlist.songIds.where((id) => songMap.containsKey(id)).map((id) => songMap[id]!).toList();
     if (mounted) setState(() { _playlist = playlist; _songs = songs; _isLoading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
+    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
+    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
+    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
+
     if (_isLoading || _playlist == null) {
-      return const Scaffold(
-        backgroundColor: YYColors.bgBase,
-        body: Center(child: CircularProgressIndicator(color: YYColors.accentPrimary)),
+      return Scaffold(
+        backgroundColor: bg,
+        body: const Center(child: CircularProgressIndicator(color: YYColors.accentPrimary)),
       );
     }
 
@@ -74,66 +72,49 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     final playerState = ref.watch(playerProvider);
 
     return Scaffold(
-      backgroundColor: YYColors.bgBase,
+      backgroundColor: bg,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: Colors.transparent,
-            foregroundColor: YYColors.textPrimary,
+            foregroundColor: pri,
             expandedHeight: 200,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(playlist.name, style: const TextStyle(
-                  color: YYColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+              title: Text(playlist.name, style: TextStyle(color: pri, fontWeight: FontWeight.bold, fontSize: 18)),
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
                     colors: colors.map((c) => c.withValues(alpha: 0.3)).toList(),
                   ),
                 ),
-                child: Center(
-                  child: Icon(CupertinoIcons.music_note_list,
-                      size: 64, color: colors[0].withValues(alpha: 0.5)),
-                ),
+                child: Center(child: Icon(CupertinoIcons.music_note_list, size: 64, color: colors[0].withValues(alpha: 0.5))),
               ),
             ),
             actions: [
               if (_songs.isNotEmpty)
                 IconButton(
                   icon: const Icon(CupertinoIcons.play_circle, size: 28),
-                  onPressed: () {
-                    ref.read(playerProvider.notifier).playSong(_songs.first, queue: _songs);
-                  },
+                  onPressed: () => ref.read(playerProvider.notifier).playSong(_songs.first, queue: _songs),
                 ),
               IconButton(
                 icon: const Icon(CupertinoIcons.ellipsis, size: 22),
-                onPressed: () => _showOptions(context),
+                onPressed: () => _showOptions(context, card, pri),
               ),
             ],
           ),
-
-          // 歌曲数
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text('${_songs.length} 首歌曲',
-                  style: const TextStyle(color: YYColors.textTertiary, fontSize: 13)),
+              child: Text('${_songs.length} 首歌曲', style: TextStyle(color: tri, fontSize: 13)),
             ),
           ),
-
-          // 空状态
           if (_songs.isEmpty)
-            const SliverFillRemaining(
-              child: Center(
-                child: Text('歌单是空的\n从歌曲列表添加歌曲到这里',
-                    style: TextStyle(color: YYColors.textTertiary, fontSize: 14),
-                    textAlign: TextAlign.center),
-              ),
+            SliverFillRemaining(
+              child: Center(child: Text('歌单是空的\n从歌曲列表添加歌曲到这里',
+                  style: TextStyle(color: tri, fontSize: 14), textAlign: TextAlign.center)),
             ),
-
-          // 歌曲列表
           SliverPadding(
             padding: const EdgeInsets.only(bottom: 100),
             sliver: SliverList(
@@ -143,18 +124,18 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                   final isPlaying = playerState.currentSong?.id == song.id;
                   return GestureDetector(
                     onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
+                    onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       child: Row(
                         children: [
                           Text('${index + 1}', style: TextStyle(
-                              color: isPlaying ? YYColors.accentPrimary : YYColors.textTertiary, fontSize: 14),
+                              color: isPlaying ? YYColors.accentPrimary : tri, fontSize: 14),
                               textAlign: TextAlign.center),
                           const SizedBox(width: 14),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(6),
-                            child: SizedBox(width: 44, height: 44,
-                                child: GradientCover(seed: song.title, size: 44)),
+                            child: SizedBox(width: 44, height: 44, child: GradientCover(seed: song.title, coverUrl: song.coverUrl, size: 44)),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -162,16 +143,14 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(song.title, style: TextStyle(
-                                    color: isPlaying ? YYColors.accentPrimary : YYColors.textPrimary,
+                                    color: isPlaying ? YYColors.accentPrimary : pri,
                                     fontWeight: FontWeight.w500, fontSize: 15),
                                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                                Text(song.artist, style: const TextStyle(
-                                    color: YYColors.textSecondary, fontSize: 12)),
+                                Text(song.artist, style: TextStyle(color: sub, fontSize: 12)),
                               ],
                             ),
                           ),
-                          Text(song.durationText, style: const TextStyle(
-                              color: YYColors.textTertiary, fontSize: 12)),
+                          Text(song.durationText, style: TextStyle(color: tri, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -186,18 +165,20 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     );
   }
 
-  void _showOptions(BuildContext context) {
+  void _showOptions(BuildContext context, Color card, Color pri) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
     showModalBottomSheet(
       context: context,
-      backgroundColor: YYColors.bgGlassThick,
+      backgroundColor: card,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(CupertinoIcons.pencil, color: YYColors.textPrimary),
-              title: const Text('重命名', style: TextStyle(color: YYColors.textPrimary)),
-              onTap: () { Navigator.pop(context); _renamePlaylist(); },
+              leading: Icon(CupertinoIcons.pencil, color: pri),
+              title: Text('重命名', style: TextStyle(color: pri)),
+              onTap: () { Navigator.pop(context); _renamePlaylist(card, pri, tri); },
             ),
             ListTile(
               leading: const Icon(CupertinoIcons.delete, color: Colors.redAccent),
@@ -214,27 +195,21 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage> {
     );
   }
 
-  void _renamePlaylist() {
+  void _renamePlaylist(Color card, Color pri, Color tri) {
     final controller = TextEditingController(text: _playlist?.name ?? '');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: YYColors.bgGlassThick,
-        title: const Text('重命名歌单', style: TextStyle(color: YYColors.textPrimary)),
+        backgroundColor: card,
+        title: Text('重命名歌单', style: TextStyle(color: pri)),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: YYColors.textPrimary),
+          style: TextStyle(color: pri),
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '歌单名称',
-            hintStyle: TextStyle(color: YYColors.textTertiary),
-          ),
+          decoration: InputDecoration(hintText: '歌单名称', hintStyle: TextStyle(color: tri)),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           TextButton(
             onPressed: () {
               final name = controller.text.trim();

@@ -189,6 +189,22 @@ class MusicDatabaseService {
       albumCount: albums.length,
     );
   }
+  /// 更新歌曲歌词
+  Future<void> updateSongLyrics(String songId, String lyrics) async {
+    final box = await _openBox;
+    final existing = box.get(songId);
+    if (existing is Map) {
+      final map = Map<String, dynamic>.from(existing);
+      map['lyrics'] = lyrics;
+      await box.put(songId, map);
+    }
+  }
+
+  /// 更新歌曲元数据（用于刮削结果）
+  Future<void> updateSong(MusicItem song) async {
+    final box = await _openBox;
+    await box.put(song.id, song.toMap());
+  }
 }
 
 class _AlbumAcc {

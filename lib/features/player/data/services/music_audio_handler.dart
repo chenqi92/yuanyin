@@ -24,13 +24,16 @@ class MusicAudioHandler extends BaseAudioHandler
     _init();
   }
 
-  final AudioPlayer _player = AudioPlayer();
+  AudioPlayer _player = AudioPlayer();
+  AudioPlayer? _playerB; // 交叉淡化第二播放器
 
   Uint8List? _currentArtworkData;
   MusicItem? _currentMusicItem;
   final List<MusicItem> _musicQueue = [];
   int _currentIndex = 0;
   double _volume = 1.0;
+  double _crossfadeDuration = 0; // 秒，0 = 关闭
+  Timer? _fadeTimer;
 
   AudioPlayer get player => _player;
 
@@ -132,10 +135,62 @@ class MusicAudioHandler extends BaseAudioHandler
     }
   }
 
+  // ==================== 交叉淡化 ====================
+
+  /// 设置交叉淡化时长（秒）
+  void setCrossfadeDuration(double seconds) {
+    _crossfadeDuration = seconds;
+  }
+
+  /// 执行交叉淡化切歌
+  Future<void> _crossfadeToNew(String url) async {
+    final fadeDurationMs = (_crossfadeDuration * 1000).toInt();
+    const stepMs = 50;
+    final steps = fadeDurationMs ~/ stepMs;
+    if (steps <= 0) return;
+
+    // 准备新播放器
+    _playerB ??= AudioPlayer();
+    await _playerB!.setAudioSource(AudioSource.uri(Uri.parse(url)));
+    await _playerB!.setVolume(0);
+    unawaited(_playerB!.play());
+
+    // 渐变：旧淡出 + 新淡入
+    int step = 0;
+    _fadeTimer?.cancel();
+    _fadeTimer = Timer.periodic(Duration(milliseconds: stepMs), (timer) {
+      step++;
+      final progress = (step / steps).clamp(0.0, 1.0);
+      _player.setVolume((1.0 - progress) * _volume);
+      _playerB?.setVolume(progress * _volume);
+
+      if (step >= steps) {
+        timer.cancel();
+        final oldPlayer = _player;
+        _player = _playerB!;
+        _playerB = oldPlayer;
+        _playerB!.stop();
+        // 重新连接流
+        _reconnectStreams();
+      }
+    });
+  }
+
+  void _reconnectStreams() {
+    // playbackEvent 流已自动绑定到当前 _player 实例
+    _player.playbackEventStream.listen(_broadcastState);
+    _player.durationStream.listen((duration) {
+      if (duration != null && mediaItem.value != null) {
+        mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+      }
+    });
+  }
+
   // ==================== IMusicAudioHandler ====================
 
   @override
   Future<void> prepareForNewTrack() async {
+    _fadeTimer?.cancel();
     if (_player.playing) {
       await _player.pause();
       _broadcastState(PlaybackEvent());
@@ -205,6 +260,12 @@ class MusicAudioHandler extends BaseAudioHandler
 
   @override
   Future<Duration?> setAudioSource(String url, {Map<String, String>? headers}) async {
+    // 如果启用了交叉淡化且当前正在播放，使用交叉淡化
+    if (_crossfadeDuration > 0 && _player.playing) {
+      await _crossfadeToNew(url);
+      return _player.duration;
+    }
+
     final uri = Uri.parse(url);
     AudioSource audioSource;
 
@@ -321,8 +382,10 @@ class MusicAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> dispose() async {
+    _fadeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     await _player.dispose();
+    await _playerB?.dispose();
   }
 }
 
@@ -330,8 +393,8 @@ class MusicAudioHandler extends BaseAudioHandler
 Future<MusicAudioHandler> initAudioHandler() => AudioService.init(
       builder: MusicAudioHandler.new,
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.kkape.yuanyin.channel.audio',
-        androidNotificationChannelName: '猿音播放',
+        androidNotificationChannelId: 'com.kkape.primuse.channel.audio',
+        androidNotificationChannelName: 'Primuse 播放',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
       ),

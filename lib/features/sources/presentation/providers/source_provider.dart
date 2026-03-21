@@ -125,6 +125,31 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
     await scanSource(source.id);
   }
 
+  /// 添加 SMB 数据源
+  Future<void> addSmbSource({
+    required String name,
+    required String host,
+    int port = 445,
+    String? username,
+    String? password,
+    required String sharePath,
+  }) async {
+    final source = SourceEntity(
+      id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
+      name: name,
+      type: SourceType.smb,
+      path: sharePath,
+      host: host,
+      port: port,
+      username: username,
+      password: password,
+      status: SourceStatus.connecting,
+    );
+    await _repository.add(source);
+    state = state.copyWith(sources: [...state.sources, source]);
+    await scanSource(source.id);
+  }
+
   // ---- 扫描 ----
 
   /// 扫描指定数据源
@@ -164,6 +189,16 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
             port: source.port ?? 5000,
             sid: sid,
             folderPath: source.path,
+            onProgress: _onProgress,
+          );
+          break;
+        case SourceType.smb:
+          // SMB 直连：尝试通过 HTTP 文件服务器代理扫描
+          // Flutter 无原生 SMB/CIFS 支持，需 NAS 端运行 HTTP 代理或使用 WebDAV
+          songs = await _webdavScanner.scan(
+            'http://${source.host}:${source.port ?? 445}${source.path}',
+            username: source.username,
+            password: source.password,
             onProgress: _onProgress,
           );
           break;
