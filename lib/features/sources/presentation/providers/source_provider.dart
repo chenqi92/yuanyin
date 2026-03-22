@@ -8,6 +8,7 @@ import '../../domain/entities/source_entity.dart';
 import '../../../player/domain/entities/music_item.dart';
 import '../../../library/data/services/music_database_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
+import 'dart:io';
 
 /// 数据源状态
 class SourcesState {
@@ -133,6 +134,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
     String? username,
     String? password,
     required String sharePath,
+    bool useSsl = false,
   }) async {
     final source = SourceEntity(
       id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
@@ -143,11 +145,79 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
       port: port,
       username: username,
       password: password,
+      useSsl: useSsl,
       status: SourceStatus.connecting,
     );
     await _repository.add(source);
     state = state.copyWith(sources: [...state.sources, source]);
     await scanSource(source.id);
+  }
+
+  // ---- 连接测试 ----
+
+  /// 测试数据源连接（不扫描）
+  ///
+  /// 返回 (success, errorMessage)
+  Future<(bool, String?)> testConnection(SourceEntity source) async {
+    switch (source.type) {
+      case SourceType.local:
+        final dir = Directory(source.path);
+        if (await dir.exists()) {
+          return (true, null);
+        }
+        return (false, '目录不存在或无权限访问');
+
+      case SourceType.webdav:
+        return _webdavScanner.testConnection(
+          source.path,
+          username: source.username,
+          password: source.password,
+        );
+
+      case SourceType.synology:
+        return _smbScanner.testSynologyConnection(
+          host: source.host!,
+          port: source.port ?? 5000,
+          username: source.username!,
+          password: source.password!,
+          useSsl: source.useSsl,
+        );
+
+      case SourceType.smb:
+        // SMB 走 HTTP 代理，尝试连接 host:port
+        return _webdavScanner.testConnection(
+          'http://${source.host}:${source.port ?? 445}${source.path}',
+          username: source.username,
+          password: source.password,
+        );
+
+      default:
+        return (false, '暂不支持该类型的连接测试');
+    }
+  }
+
+  // ---- 编辑数据源 ----
+
+  /// 更新数据源配置
+  Future<void> editSource(SourceEntity updatedSource) async {
+    await _repository.update(updatedSource);
+    final sources = [...state.sources];
+    final index = sources.indexWhere((s) => s.id == updatedSource.id);
+    if (index != -1) {
+      sources[index] = updatedSource;
+      state = state.copyWith(sources: sources);
+    }
+  }
+
+  // ---- 自动重连 ----
+
+  /// 启动时自动扫描所有 autoConnect 数据源
+  Future<void> autoReconnectAll() async {
+    for (final source in state.sources) {
+      if (source.autoConnect && source.status != SourceStatus.connected) {
+        await scanSource(source.id);
+      }
+    }
   }
 
   // ---- 扫描 ----
@@ -182,6 +252,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
             port: source.port ?? 5000,
             username: source.username!,
             password: source.password!,
+            useSsl: source.useSsl,
           );
           if (sid == null) throw Exception('群晖登录失败');
           songs = await _smbScanner.scanSynology(

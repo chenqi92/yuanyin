@@ -48,9 +48,11 @@ class SmbScanner {
     int port = 5000,
     required String username,
     required String password,
+    bool useSsl = false,
   }) async {
     try {
-      final url = 'http://$host:$port/webapi/auth.cgi';
+      final protocol = useSsl ? 'https' : 'http';
+      final url = '$protocol://$host:$port/webapi/auth.cgi';
       final response = await _dio.get(url, queryParameters: {
         'api': 'SYNO.API.Auth',
         'version': '3',
@@ -70,6 +72,39 @@ class SmbScanner {
       _log.w('群晖登录异常: $e');
       return null;
     }
+  }
+
+  /// 测试群晖连接（仅登录，不扫描）
+  ///
+  /// 返回 (success, errorMessage)
+  Future<(bool, String?)> testSynologyConnection({
+    required String host,
+    int port = 5000,
+    required String username,
+    required String password,
+    bool useSsl = false,
+  }) async {
+    try {
+      final sid = await synologyLogin(
+        host: host, port: port, username: username, password: password, useSsl: useSsl,
+      );
+      if (sid != null) {
+        return (true, null);
+      }
+      return (false, '登录失败：用户名或密码错误');
+    } on DioException catch (e) {
+      return (false, _friendlyError(e));
+    } catch (e) {
+      return (false, e.toString());
+    }
+  }
+
+  String _friendlyError(DioException e) {
+    if (e.type == DioExceptionType.connectionTimeout) return '连接超时，请检查地址和端口';
+    if (e.type == DioExceptionType.connectionError) return '无法连接，请检查网络和地址';
+    if (e.response?.statusCode == 403) return '访问被拒绝';
+    if (e.response?.statusCode == 401) return '认证失败';
+    return '连接失败: ${e.message}';
   }
 
   Future<void> _scanSynologyDir(

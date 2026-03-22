@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/widgets/modern_music_ui.dart';
@@ -30,6 +31,29 @@ class SourcesPage extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 28),
             children: [
+              // 返回按钮 — 仅当从其他页面 push 过来时显示
+              if (Navigator.canPop(context))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: () => context.pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: context.yyBgSurface.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          CupertinoIcons.back,
+                          color: context.yyTextPrimary,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               YYPageHeader(
                 eyebrow: '内容入口',
                 title: '数据源管理',
@@ -97,6 +121,14 @@ class SourcesPage extends ConsumerWidget {
                     onRescan: () => ref
                         .read(sourcesProvider.notifier)
                         .scanSource(source.id),
+                    onEdit: () => _showAddSheet(
+                      context,
+                      ref,
+                      context.yyBgElevated,
+                      context.yyTextPrimary,
+                      context.yyTextTertiary,
+                      existingSource: source,
+                    ),
                     onDelete: () => _confirmDelete(
                       context,
                       ref,
@@ -120,14 +152,18 @@ class SourcesPage extends ConsumerWidget {
     WidgetRef ref,
     Color card,
     Color pri,
-    Color tri,
-  ) {
+    Color tri, {
+    SourceEntity? existingSource,
+  }) {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddSourceSheet(ref: ref, card: card, pri: pri, tri: tri),
+      builder: (_) => _AddSourceSheet(
+        ref: ref, card: card, pri: pri, tri: tri,
+        existingSource: existingSource,
+      ),
     );
   }
 
@@ -328,11 +364,13 @@ class _SourceEmptyState extends StatelessWidget {
 class _SourceTile extends StatelessWidget {
   final SourceEntity source;
   final VoidCallback onRescan;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _SourceTile({
     required this.source,
     required this.onRescan,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -485,6 +523,11 @@ class _SourceTile extends StatelessWidget {
                   ),
                 ),
                 _SourceAction(
+                  icon: CupertinoIcons.pencil,
+                  onTap: onEdit,
+                ),
+                const SizedBox(width: 8),
+                _SourceAction(
                   icon: CupertinoIcons.arrow_clockwise,
                   onTap: onRescan,
                 ),
@@ -539,12 +582,14 @@ class _AddSourceSheet extends StatefulWidget {
   final Color card;
   final Color pri;
   final Color tri;
+  final SourceEntity? existingSource; // null = 添加模式，非 null = 编辑模式
 
   const _AddSourceSheet({
     required this.ref,
     required this.card,
     required this.pri,
     required this.tri,
+    this.existingSource,
   });
 
   @override
@@ -559,6 +604,37 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
   final _portCtrl = TextEditingController(text: '5000');
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  bool _useSsl = false;
+  bool _obscurePassword = true;
+
+  // 连接测试状态
+  _TestStatus _testStatus = _TestStatus.idle;
+  String? _testError;
+
+  bool get _isEditMode => widget.existingSource != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // 编辑模式：预填字段
+    final src = widget.existingSource;
+    if (src != null) {
+      _nameCtrl.text = src.name;
+      _pathCtrl.text = src.path;
+      _hostCtrl.text = src.host ?? '';
+      _portCtrl.text = (src.port ?? 5000).toString();
+      _userCtrl.text = src.username ?? '';
+      _passCtrl.text = src.password ?? '';
+      _useSsl = src.useSsl;
+      _selectedType = switch (src.type) {
+        SourceType.local => 0,
+        SourceType.webdav => 1,
+        SourceType.synology => 2,
+        SourceType.smb => 3,
+        _ => 0,
+      };
+    }
+  }
 
   @override
   void dispose() {
@@ -575,9 +651,13 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
   Widget build(BuildContext context) {
     final surface = context.yyBgSurface;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: widget.card,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: widget.card,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(YYRadius.bottomSheet),
         ),
@@ -605,55 +685,43 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                 ),
               ),
               const SizedBox(height: 18),
-              Text('添加数据源', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                _isEditMode ? '编辑数据源' : '添加数据源',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: 8),
               Text(
-                '选择协议并填写连接信息，保存后会立即开始扫描。',
+                _isEditMode
+                    ? '修改连接信息后点击保存，也可以先测试连接。'
+                    : '选择协议并填写连接信息，建议先测试连接再保存。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 18),
-              CupertinoSlidingSegmentedControl<int>(
-                groupValue: _selectedType,
-                backgroundColor: surface,
-                thumbColor: YYColors.accentPrimary.withValues(alpha: 0.32),
-                children: {
-                  0: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Text('本地', style: TextStyle(color: widget.pri)),
-                  ),
-                  1: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Text('WebDAV', style: TextStyle(color: widget.pri)),
-                  ),
-                  2: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Text('群晖', style: TextStyle(color: widget.pri)),
-                  ),
-                  3: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Text('SMB', style: TextStyle(color: widget.pri)),
-                  ),
-                },
-                onValueChanged: (value) {
-                  setState(() {
-                    _selectedType = value ?? 0;
-                    _portCtrl.text = _selectedType == 3 ? '445' : '5000';
-                  });
-                },
-              ),
+
+              // 协议选择（编辑模式下不可更改）
+              if (!_isEditMode)
+                CupertinoSlidingSegmentedControl<int>(
+                  groupValue: _selectedType,
+                  backgroundColor: surface,
+                  thumbColor: YYColors.accentPrimary.withValues(alpha: 0.32),
+                  children: {
+                    0: _segLabel('本地', widget.pri),
+                    1: _segLabel('WebDAV', widget.pri),
+                    2: _segLabel('群晖', widget.pri),
+                    3: _segLabel('SMB', widget.pri),
+                  },
+                  onValueChanged: (value) {
+                    setState(() {
+                      _selectedType = value ?? 0;
+                      _portCtrl.text = _selectedType == 3 ? '445' : '5000';
+                      _testStatus = _TestStatus.idle;
+                      _testError = null;
+                    });
+                  },
+                ),
               const SizedBox(height: 14),
+
+              // 协议说明卡片
               YYPanel(
                 padding: const EdgeInsets.all(14),
                 color: surface.withValues(alpha: context.isDark ? 0.72 : 0.92),
@@ -685,6 +753,8 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                 ),
               ),
               const SizedBox(height: 18),
+
+              // 表单字段
               _field(_nameCtrl, '数据源名称', CupertinoIcons.tag, surface),
               if (_selectedType == 0)
                 _field(
@@ -706,7 +776,8 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                   '密码 (可选)',
                   CupertinoIcons.lock,
                   surface,
-                  obscure: true,
+                  obscure: _obscurePassword,
+                  suffixIcon: _buildPasswordToggle(),
                 ),
               ],
               if (_selectedType == 2) ...[
@@ -728,7 +799,8 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                   '密码',
                   CupertinoIcons.lock,
                   surface,
-                  obscure: true,
+                  obscure: _obscurePassword,
+                  suffixIcon: _buildPasswordToggle(),
                 ),
                 _field(
                   _pathCtrl,
@@ -756,7 +828,8 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                   '密码 (可选)',
                   CupertinoIcons.lock,
                   surface,
-                  obscure: true,
+                  obscure: _obscurePassword,
+                  suffixIcon: _buildPasswordToggle(),
                 ),
                 _field(
                   _pathCtrl,
@@ -765,24 +838,249 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                   surface,
                 ),
               ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: CupertinoButton(
-                  color: YYColors.accentPrimary,
-                  borderRadius: BorderRadius.circular(16),
-                  onPressed: _submit,
-                  child: const Text(
-                    '添加并扫描',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+
+              // HTTPS 开关（群晖和 WebDAV）
+              if (_selectedType == 1 || _selectedType == 2) ...[
+                const SizedBox(height: 4),
+                _buildSslSwitch(surface),
+              ],
+
+              const SizedBox(height: 16),
+
+              // 连接测试反馈区域
+              if (_testStatus != _TestStatus.idle) _buildTestFeedback(),
+
+              // 操作按钮区域
+              Row(
+                children: [
+                  // 测试连接按钮
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        color: surface,
+                        borderRadius: BorderRadius.circular(14),
+                        onPressed: _testStatus == _TestStatus.testing
+                            ? null
+                            : _handleTestConnection,
+                        child: _testStatus == _TestStatus.testing
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: widget.pri,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '测试中…',
+                                    style: TextStyle(
+                                      color: widget.pri,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    CupertinoIcons.antenna_radiowaves_left_right,
+                                    size: 17,
+                                    color: widget.pri,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '测试连接',
+                                    style: TextStyle(
+                                      color: widget.pri,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  // 添加/保存按钮
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        color: YYColors.accentPrimary,
+                        borderRadius: BorderRadius.circular(14),
+                        onPressed: _submit,
+                        child: Text(
+                          _isEditMode ? '保存修改' : '添加并扫描',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ), // Container
+    ), // ConstrainedBox
+    );
+  }
+
+  Widget _segLabel(String label, Color color) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Text(label, style: TextStyle(color: color)),
+      );
+
+  Widget _buildPasswordToggle() => GestureDetector(
+        onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+        child: Icon(
+          _obscurePassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+          size: 18,
+          color: widget.tri,
+        ),
+      );
+
+  Widget _buildSslSwitch(Color surface) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _useSsl
+                  ? CupertinoIcons.lock_shield_fill
+                  : CupertinoIcons.lock_open,
+              size: 18,
+              color: _useSsl ? YYColors.statusSuccess : widget.tri,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '使用 HTTPS',
+                    style: TextStyle(
+                      color: widget.pri,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _useSsl ? '加密连接' : '不安全的明文连接',
+                    style: TextStyle(
+                      color: widget.tri,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            CupertinoSwitch(
+              value: _useSsl,
+              activeTrackColor: YYColors.accentPrimary,
+              onChanged: (v) => setState(() {
+                _useSsl = v;
+                // 群晖默认端口切换
+                if (_selectedType == 2) {
+                  _portCtrl.text = v ? '5001' : '5000';
+                }
+              }),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildTestFeedback() {
+    final Color bgColor;
+    final Color textColor;
+    final IconData icon;
+    final String message;
+
+    switch (_testStatus) {
+      case _TestStatus.success:
+        bgColor = YYColors.statusSuccess.withValues(alpha: 0.12);
+        textColor = YYColors.statusSuccess;
+        icon = CupertinoIcons.checkmark_circle_fill;
+        message = '连接成功！可以安全添加。';
+        break;
+      case _TestStatus.error:
+        bgColor = YYColors.statusError.withValues(alpha: 0.12);
+        textColor = YYColors.statusError;
+        icon = CupertinoIcons.xmark_circle_fill;
+        message = _testError ?? '连接失败';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: textColor, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _handleTestConnection() async {
+    final error = _validateInput();
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+
+    setState(() {
+      _testStatus = _TestStatus.testing;
+      _testError = null;
+    });
+
+    final tempSource = _buildSourceEntity('__test__');
+    final (success, errMsg) = await widget.ref
+        .read(sourcesProvider.notifier)
+        .testConnection(tempSource);
+
+    if (!mounted) return;
+    setState(() {
+      _testStatus = success ? _TestStatus.success : _TestStatus.error;
+      _testError = errMsg;
+    });
   }
 
   Widget _field(
@@ -791,6 +1089,7 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
     IconData icon,
     Color surface, {
     bool obscure = false,
+    Widget? suffixIcon,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -821,6 +1120,7 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
                 ),
               ),
             ),
+            if (suffixIcon != null) suffixIcon,
           ],
         ),
       ),
@@ -938,9 +1238,24 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
     }
   }
 
-  void _submit() {
+  SourceEntity _buildSourceEntity(String id) {
     final name = _resolvedName;
     final path = _pathCtrl.text.trim();
+    return SourceEntity(
+      id: id,
+      name: name,
+      type: [SourceType.local, SourceType.webdav, SourceType.synology, SourceType.smb][_selectedType],
+      path: path,
+      host: _hostCtrl.text.trim().isNotEmpty ? _hostCtrl.text.trim() : null,
+      port: int.tryParse(_portCtrl.text.trim()),
+      username: _userCtrl.text.trim().isNotEmpty ? _userCtrl.text.trim() : null,
+      password: _passCtrl.text.trim().isNotEmpty ? _passCtrl.text.trim() : null,
+      useSsl: _useSsl,
+      status: SourceStatus.connecting,
+    );
+  }
+
+  void _submit() {
     final error = _validateInput();
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -949,8 +1264,74 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
       return;
     }
 
-    final notifier = widget.ref.read(sourcesProvider.notifier);
+    final name = _resolvedName;
 
+    // 二次确认对话框
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.card,
+        title: Text(
+          _isEditMode ? '确认保存' : '确认添加',
+          style: TextStyle(color: widget.pri),
+        ),
+        content: Text(
+          _isEditMode
+              ? '确定保存对「$name」的修改？'
+              : '确定添加数据源「$name」并开始扫描？\n\n扫描过程可能需要几分钟，具体取决于文件数量。',
+          style: TextStyle(color: widget.tri),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('取消', style: TextStyle(color: widget.tri)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _doSubmit();
+            },
+            child: Text(
+              _isEditMode ? '保存' : '添加并扫描',
+              style: const TextStyle(
+                color: YYColors.accentPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _doSubmit() {
+    final notifier = widget.ref.read(sourcesProvider.notifier);
+    final name = _resolvedName;
+    final path = _pathCtrl.text.trim();
+
+    if (_isEditMode) {
+      // 编辑模式
+      final updated = widget.existingSource!.copyWith(
+        name: name,
+        path: path,
+        host: _hostCtrl.text.trim().isNotEmpty ? _hostCtrl.text.trim() : null,
+        port: int.tryParse(_portCtrl.text.trim()),
+        username: _userCtrl.text.trim().isNotEmpty ? _userCtrl.text.trim() : null,
+        password: _passCtrl.text.trim().isNotEmpty ? _passCtrl.text.trim() : null,
+        useSsl: _useSsl,
+      );
+      notifier.editSource(updated);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已保存 $name 的修改'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // 添加模式
     switch (_selectedType) {
       case 0:
         notifier.addLocalSource(name, path);
@@ -989,6 +1370,7 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
               ? _passCtrl.text.trim()
               : null,
           sharePath: path,
+          useSsl: _useSsl,
         );
         break;
     }
@@ -1002,3 +1384,6 @@ class _AddSourceSheetState extends State<_AddSourceSheet> {
     );
   }
 }
+
+enum _TestStatus { idle, testing, success, error }
+

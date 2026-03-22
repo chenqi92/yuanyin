@@ -43,10 +43,12 @@ class SourceEntity {
   final int? port;
   final String? username;
   final String? password;
+  final bool useSsl;
   final bool autoConnect;
   final SourceStatus status;
   final int songCount;
   final DateTime? lastScanTime;
+  final String? errorMessage;
 
   const SourceEntity({
     required this.id,
@@ -57,10 +59,12 @@ class SourceEntity {
     this.port,
     this.username,
     this.password,
+    this.useSsl = false,
     this.autoConnect = true,
     this.status = SourceStatus.disconnected,
     this.songCount = 0,
     this.lastScanTime,
+    this.errorMessage,
   });
 
   SourceEntity copyWith({
@@ -70,10 +74,12 @@ class SourceEntity {
     int? port,
     String? username,
     String? password,
+    bool? useSsl,
     bool? autoConnect,
     SourceStatus? status,
     int? songCount,
     DateTime? lastScanTime,
+    String? errorMessage,
   }) {
     return SourceEntity(
       id: id,
@@ -84,10 +90,12 @@ class SourceEntity {
       port: port ?? this.port,
       username: username ?? this.username,
       password: password ?? this.password,
+      useSsl: useSsl ?? this.useSsl,
       autoConnect: autoConnect ?? this.autoConnect,
       status: status ?? this.status,
       songCount: songCount ?? this.songCount,
       lastScanTime: lastScanTime ?? this.lastScanTime,
+      errorMessage: errorMessage,
     );
   }
 
@@ -124,9 +132,11 @@ class SourceEntity {
       'port': port,
       'username': username,
       'password': password,
+      'useSsl': useSsl,
       'autoConnect': autoConnect,
       'songCount': songCount,
       'lastScanTime': lastScanTime?.millisecondsSinceEpoch,
+      'errorMessage': errorMessage,
     };
   }
 
@@ -140,11 +150,13 @@ class SourceEntity {
       port: map['port'] as int?,
       username: map['username'] as String?,
       password: map['password'] as String?,
+      useSsl: map['useSsl'] as bool? ?? false,
       autoConnect: map['autoConnect'] as bool? ?? true,
       songCount: map['songCount'] as int? ?? 0,
       lastScanTime: map['lastScanTime'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['lastScanTime'] as int)
           : null,
+      errorMessage: map['errorMessage'] as String?,
     );
   }
 }

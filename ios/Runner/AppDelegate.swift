@@ -357,7 +357,14 @@ private final class YYLiquidTabBarHostView: UIView, UITabBarDelegate {
 
   private func configureAppearance() {
     if #available(iOS 26.0, *) {
-      return
+      // iOS 26: Liquid Glass — 设置透明背景，让系统自动应用玻璃质感
+      let appearance = UITabBarAppearance()
+      appearance.configureWithTransparentBackground()
+      tabBar.standardAppearance = appearance
+      if #available(iOS 15.0, *) {
+        tabBar.scrollEdgeAppearance = appearance
+      }
+      tabBar.isTranslucent = true
     } else {
       let appearance = UITabBarAppearance()
       appearance.configureWithDefaultBackground()

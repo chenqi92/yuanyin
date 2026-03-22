@@ -20,6 +20,51 @@ class WebDavScanner {
 
   WebDavScanner() : _dio = Dio();
 
+  /// 测试 WebDAV 连接可达性
+  ///
+  /// 返回 (success, errorMessage)
+  Future<(bool, String?)> testConnection(
+    String baseUrl, {
+    String? username,
+    String? password,
+  }) async {
+    try {
+      final headers = <String, String>{'Content-Type': 'application/xml'};
+      if (username != null && password != null) {
+        final credentials = base64Encode(
+            Uint8List.fromList('$username:$password'.codeUnits));
+        headers['Authorization'] = 'Basic $credentials';
+      }
+
+      final url = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+      final response = await _dio.request(
+        url,
+        options: Options(
+          method: 'PROPFIND',
+          headers: {...headers, 'Depth': '0'},
+          validateStatus: (status) => status != null && status < 500,
+          receiveTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 10),
+        ),
+        data: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>',
+      );
+
+      if (response.statusCode == 207 || response.statusCode == 200) {
+        return (true, null);
+      }
+      if (response.statusCode == 401) return (false, '认证失败：用户名或密码错误');
+      if (response.statusCode == 403) return (false, '访问被拒绝');
+      if (response.statusCode == 404) return (false, '路径不存在');
+      return (false, 'HTTP ${response.statusCode}');
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout) return (false, '连接超时，请检查地址');
+      if (e.type == DioExceptionType.connectionError) return (false, '无法连接，请检查网络和地址');
+      return (false, '连接失败: ${e.message}');
+    } catch (e) {
+      return (false, e.toString());
+    }
+  }
+
   /// 扫描 WebDAV 服务器上的音频文件
   ///
   /// [baseUrl] WebDAV 根 URL (e.g. https://dav.example.com/music)
