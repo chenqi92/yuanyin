@@ -49,6 +49,7 @@ class SourceEntity {
   final int songCount;
   final DateTime? lastScanTime;
   final String? errorMessage;
+  final String? deviceToken;
 
   const SourceEntity({
     required this.id,
@@ -65,6 +66,7 @@ class SourceEntity {
     this.songCount = 0,
     this.lastScanTime,
     this.errorMessage,
+    this.deviceToken,
   });
 
   SourceEntity copyWith({
@@ -80,6 +82,7 @@ class SourceEntity {
     int? songCount,
     DateTime? lastScanTime,
     String? errorMessage,
+    String? deviceToken,
   }) {
     return SourceEntity(
       id: id,
@@ -96,6 +99,7 @@ class SourceEntity {
       songCount: songCount ?? this.songCount,
       lastScanTime: lastScanTime ?? this.lastScanTime,
       errorMessage: errorMessage,
+      deviceToken: deviceToken ?? this.deviceToken,
     );
   }
 
@@ -137,6 +141,7 @@ class SourceEntity {
       'songCount': songCount,
       'lastScanTime': lastScanTime?.millisecondsSinceEpoch,
       'errorMessage': errorMessage,
+      'deviceToken': deviceToken,
     };
   }
 
@@ -157,6 +162,7 @@ class SourceEntity {
           ? DateTime.fromMillisecondsSinceEpoch(map['lastScanTime'] as int)
           : null,
       errorMessage: map['errorMessage'] as String?,
+      deviceToken: map['deviceToken'] as String?,
     );
   }
 }

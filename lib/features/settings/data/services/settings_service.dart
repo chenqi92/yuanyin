@@ -26,10 +26,10 @@ class SettingsService {
   Future<double> getVolume() async => (await get<double>('volume')) ?? 1.0;
   Future<void> setVolume(double v) => set('volume', v);
 
-  Future<int> getPlayModeIndex() async => (await get<int>('playMode')) ?? 0;
-  Future<void> setPlayModeIndex(int i) => set('playMode', i);
+  Future<String> getPlayMode() async => (await get<String>('playMode')) ?? 'loop';
+  Future<void> setPlayMode(String m) => set('playMode', m);
 
-  Future<String> getEngine() async => (await get<String>('engine')) ?? 'justAudio';
+  Future<String> getEngine() async => (await get<String>('engine')) ?? 'just_audio';
   Future<void> setEngine(String e) => set('engine', e);
 
   Future<double> getCrossfadeDuration() async => (await get<double>('crossfade')) ?? 0;
@@ -37,37 +37,51 @@ class SettingsService {
 
   Future<String> getThemeMode() async => (await get<String>('themeMode')) ?? 'system';
   Future<void> setThemeMode(String m) => set('themeMode', m);
+
+  Future<bool> getGaplessPlayback() async => (await get<bool>('gapless')) ?? true;
+  Future<void> setGaplessPlayback(bool v) => set('gapless', v);
+
+  Future<bool> getShowLyrics() async => (await get<bool>('showLyrics')) ?? true;
+  Future<void> setShowLyrics(bool v) => set('showLyrics', v);
 }
 
 /// 应用设置状态
 class AppSettings {
   final double volume;
-  final int playModeIndex;
-  final String engine;
+  final String playMode;        // 'loop', 'repeat_one', 'shuffle'
+  final String engine;          // 'just_audio', 'media_kit'
   final double crossfadeDuration;
-  final String themeMode; // 'light', 'dark', 'system'
+  final String themeMode;       // 'light', 'dark', 'system'
+  final bool gaplessPlayback;
+  final bool showLyrics;
 
   const AppSettings({
     this.volume = 1.0,
-    this.playModeIndex = 0,
-    this.engine = 'justAudio',
+    this.playMode = 'loop',
+    this.engine = 'just_audio',
     this.crossfadeDuration = 0,
     this.themeMode = 'system',
+    this.gaplessPlayback = true,
+    this.showLyrics = true,
   });
 
   AppSettings copyWith({
     double? volume,
-    int? playModeIndex,
+    String? playMode,
     String? engine,
     double? crossfadeDuration,
     String? themeMode,
+    bool? gaplessPlayback,
+    bool? showLyrics,
   }) {
     return AppSettings(
       volume: volume ?? this.volume,
-      playModeIndex: playModeIndex ?? this.playModeIndex,
+      playMode: playMode ?? this.playMode,
       engine: engine ?? this.engine,
       crossfadeDuration: crossfadeDuration ?? this.crossfadeDuration,
       themeMode: themeMode ?? this.themeMode,
+      gaplessPlayback: gaplessPlayback ?? this.gaplessPlayback,
+      showLyrics: showLyrics ?? this.showLyrics,
     );
   }
 }
@@ -83,10 +97,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> _load() async {
     state = AppSettings(
       volume: await _service.getVolume(),
-      playModeIndex: await _service.getPlayModeIndex(),
+      playMode: await _service.getPlayMode(),
       engine: await _service.getEngine(),
       crossfadeDuration: await _service.getCrossfadeDuration(),
       themeMode: await _service.getThemeMode(),
+      gaplessPlayback: await _service.getGaplessPlayback(),
+      showLyrics: await _service.getShowLyrics(),
     );
   }
 
@@ -95,9 +111,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     state = state.copyWith(volume: v);
   }
 
-  Future<void> setPlayMode(int index) async {
-    await _service.setPlayModeIndex(index);
-    state = state.copyWith(playModeIndex: index);
+  Future<void> setPlayMode(String mode) async {
+    await _service.setPlayMode(mode);
+    state = state.copyWith(playMode: mode);
   }
 
   Future<void> setEngine(String engine) async {
@@ -113,6 +129,16 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setThemeMode(String mode) async {
     await _service.setThemeMode(mode);
     state = state.copyWith(themeMode: mode);
+  }
+
+  Future<void> setGapless(bool v) async {
+    await _service.setGaplessPlayback(v);
+    state = state.copyWith(gaplessPlayback: v);
+  }
+
+  Future<void> setShowLyrics(bool v) async {
+    await _service.setShowLyrics(v);
+    state = state.copyWith(showLyrics: v);
   }
 }
 

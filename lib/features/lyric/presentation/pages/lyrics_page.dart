@@ -7,7 +7,6 @@ import '../../../../app/theme/theme.dart';
 import '../../../player/presentation/providers/player_provider.dart';
 import '../../data/services/lyric_parser.dart';
 import '../../data/services/lyric_service.dart';
-import '../../../library/data/services/music_database_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../widgets/lyric_view.dart';
 
@@ -30,10 +29,10 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     final song = playerState.currentSong;
 
     if (song == null) {
-      return const Scaffold(
-        backgroundColor: YYColors.bgBase,
+      return Scaffold(
+        backgroundColor: context.yyBgBase,
         body: Center(
-          child: Text('暂无播放', style: TextStyle(color: YYColors.textSecondary)),
+          child: Text('暂无播放', style: TextStyle(color: context.yyTextSecondary)),
         ),
       );
     }
@@ -42,7 +41,8 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     final hash = '${song.title}_${song.artist}'.hashCode;
     final random = Random(hash);
     final hue = random.nextDouble() * 360;
-    final bgColor = HSLColor.fromAHSL(1.0, hue, 0.5, 0.2).toColor();
+    final isDark = context.isDark;
+    final bgColor = HSLColor.fromAHSL(1.0, hue, 0.5, isDark ? 0.2 : 0.75).toColor();
 
     // 解析歌词 — 优先 fetched，其次 song.lyrics
     final lrcText = _fetchedLyrics ?? song.lyrics;
@@ -56,7 +56,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     }
 
     return Scaffold(
-      backgroundColor: YYColors.bgBase,
+      backgroundColor: context.yyBgBase,
       body: Stack(
         children: [
           // 背景
@@ -66,7 +66,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                 gradient: RadialGradient(
                   center: Alignment.topCenter,
                   radius: 1.5,
-                  colors: [bgColor, YYColors.bgBase],
+                  colors: [bgColor, context.yyBgBase],
                 ),
               ),
             ),
@@ -74,7 +74,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-              child: Container(color: Colors.black.withValues(alpha: 0.4)),
+              child: Container(color: (isDark ? Colors.black : Colors.white).withValues(alpha: isDark ? 0.4 : 0.5)),
             ),
           ),
           // 主内容
@@ -88,16 +88,16 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                     children: [
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(CupertinoIcons.chevron_down,
-                            color: YYColors.textPrimary, size: 22),
+                        icon: Icon(CupertinoIcons.chevron_down,
+                            color: context.yyTextPrimary, size: 22),
                       ),
                       Expanded(
                         child: Column(
                           children: [
                             Text(
                               song.title,
-                              style: const TextStyle(
-                                color: YYColors.textPrimary,
+                              style: TextStyle(
+                                color: context.yyTextPrimary,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -106,8 +106,8 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                             ),
                             Text(
                               song.artist,
-                              style: const TextStyle(
-                                color: YYColors.textSecondary,
+                              style: TextStyle(
+                                color: context.yyTextSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -128,8 +128,8 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2, color: YYColors.accentPrimary),
                               )
-                            : const Icon(CupertinoIcons.search,
-                                color: YYColors.textSecondary, size: 20),
+                            : Icon(CupertinoIcons.search,
+                                color: context.yyTextSecondary, size: 20),
                       ),
                     ],
                   ),
@@ -137,27 +137,27 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                 // 歌词区域
                 Expanded(
                   child: _isFetching
-                      ? const Center(
+                      ? Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircularProgressIndicator(color: YYColors.accentPrimary),
-                              SizedBox(height: 16),
+                              const CircularProgressIndicator(color: YYColors.accentPrimary),
+                              const SizedBox(height: 16),
                               Text('正在搜索歌词…',
-                                  style: TextStyle(color: YYColors.textSecondary, fontSize: 14)),
+                                  style: TextStyle(color: context.yyTextSecondary, fontSize: 14)),
                             ],
                           ),
                         )
                       : lyrics.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(CupertinoIcons.quote_bubble,
-                                      size: 48, color: YYColors.textTertiary),
-                                  SizedBox(height: 16),
+                                      size: 48, color: context.yyTextTertiary),
+                                  const SizedBox(height: 16),
                                   Text('暂无歌词',
-                                      style: TextStyle(color: YYColors.textTertiary, fontSize: 16)),
+                                      style: TextStyle(color: context.yyTextTertiary, fontSize: 16)),
                                 ],
                               ),
                             )

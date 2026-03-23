@@ -29,12 +29,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final song = state.currentSong;
 
     if (song == null) {
-      return const Scaffold(
-        backgroundColor: YYColors.bgBase,
+      return Scaffold(
+        backgroundColor: context.yyBgBase,
         body: Center(
           child: Text(
             '暂无播放',
-            style: TextStyle(color: YYColors.textSecondary),
+            style: TextStyle(color: context.yyTextSecondary),
           ),
         ),
       );
@@ -46,9 +46,10 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
     final nextSong = state.queue.length > 1 && state.queueIndex + 1 < state.queue.length
         ? state.queue[state.queueIndex + 1]
         : null;
+    final isDark = context.isDark;
 
     return Scaffold(
-      backgroundColor: YYColors.bgBase,
+      backgroundColor: context.yyBgBase,
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
           if (details.delta.dy > 0) {
@@ -71,12 +72,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      YYColors.bgBase,
+                      context.yyBgBase,
                       Color.alphaBlend(
-                        accent.withValues(alpha: 0.10),
-                        YYColors.bgBase,
+                        accent.withValues(alpha: isDark ? 0.10 : 0.06),
+                        context.yyBgBase,
                       ),
-                      YYColors.bgBase,
+                      context.yyBgBase,
                     ],
                   ),
                 ),
@@ -85,12 +86,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
             Positioned(
               top: -120,
               right: -40,
-              child: _Glow(size: 280, color: accent),
+              child: _Glow(size: 280, color: accent, isDark: isDark),
             ),
             Positioned(
               bottom: 60,
               left: -30,
-              child: _Glow(size: 240, color: accentSoft),
+              child: _Glow(size: 240, color: accentSoft, isDark: isDark),
             ),
             Positioned.fill(
               child: DecoratedBox(
@@ -99,9 +100,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.10),
+                      (isDark ? Colors.black : Colors.white).withValues(alpha: isDark ? 0.10 : 0.05),
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.32),
+                      (isDark ? Colors.black : Colors.white).withValues(alpha: isDark ? 0.32 : 0.20),
                     ],
                   ),
                 ),
@@ -159,7 +160,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                           const SizedBox(height: 24),
                           YYPanel(
                             padding: const EdgeInsets.all(18),
-                            color: YYColors.bgGlassThinSolid.withValues(alpha: 0.78),
+                            color: context.yyBgElevated.withValues(alpha: 0.78),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -197,9 +198,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                 const SizedBox(height: 18),
                                 Row(
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       CupertinoIcons.volume_down,
-                                      color: YYColors.textTertiary,
+                                      color: context.yyTextTertiary,
                                       size: 16,
                                     ),
                                     Expanded(
@@ -212,9 +213,9 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                         },
                                       ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       CupertinoIcons.volume_up,
-                                      color: YYColors.textTertiary,
+                                      color: context.yyTextTertiary,
                                       size: 16,
                                     ),
                                   ],
@@ -276,10 +277,12 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
 class _Glow extends StatelessWidget {
   final double size;
   final Color color;
+  final bool isDark;
 
   const _Glow({
     required this.size,
     required this.color,
+    required this.isDark,
   });
 
   @override
@@ -294,7 +297,7 @@ class _Glow extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: RadialGradient(
               colors: [
-                color.withValues(alpha: 0.26),
+                color.withValues(alpha: isDark ? 0.26 : 0.14),
                 Colors.transparent,
               ],
             ),
@@ -320,7 +323,7 @@ class _TopBar extends StatelessWidget {
             width: 48,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.26),
+              color: context.yyTextTertiary.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(YYRadius.full),
             ),
           ),
@@ -332,8 +335,8 @@ class _TopBar extends StatelessWidget {
             const Spacer(),
             Text(
               '上滑队列 · 下滑收起',
-              style: const TextStyle(
-                color: YYColors.textTertiary,
+              style: TextStyle(
+                color: context.yyTextTertiary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -357,6 +360,7 @@ class _CoverStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size.width - 72;
+    final isDark = context.isDark;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -366,12 +370,12 @@ class _CoverStage extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: 0.06),
-            Colors.white.withValues(alpha: 0.01),
+            (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.03),
+            (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.01 : 0.005),
           ],
         ),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.08 : 0.05),
         ),
       ),
       child: Hero(
@@ -417,6 +421,7 @@ class _TrackMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
     return Row(
       children: [
         Expanded(
@@ -433,7 +438,7 @@ class _TrackMeta extends StatelessWidget {
               Text(
                 artist,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: YYColors.textSecondary,
+                      color: context.yyTextSecondary,
                     ),
               ),
               const SizedBox(height: 6),
@@ -451,15 +456,15 @@ class _TrackMeta extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.08 : 0.05),
               ),
             ),
             child: Icon(
               isFavorite ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-              color: isFavorite ? YYColors.heartRed : YYColors.textPrimary,
+              color: isFavorite ? YYColors.heartRed : context.yyTextPrimary,
               size: 24,
             ),
           ),
@@ -517,18 +522,18 @@ class _ProgressCluster extends StatelessWidget {
           children: [
             Text(
               _format(position),
-              style: const TextStyle(
-                color: YYColors.textTertiary,
+              style: TextStyle(
+                color: context.yyTextTertiary,
                 fontSize: 12,
-                fontFeatures: [FontFeature.tabularFigures()],
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
             Text(
               _format(duration),
-              style: const TextStyle(
-                color: YYColors.textTertiary,
+              style: TextStyle(
+                color: context.yyTextTertiary,
                 fontSize: 12,
-                fontFeatures: [FontFeature.tabularFigures()],
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ],
@@ -583,6 +588,7 @@ class _ControlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
     return Row(
       children: [
         GestureDetector(
@@ -590,7 +596,7 @@ class _ControlRow extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Column(
@@ -599,8 +605,8 @@ class _ControlRow extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   _modeLabel,
-                  style: const TextStyle(
-                    color: YYColors.textTertiary,
+                  style: TextStyle(
+                    color: context.yyTextTertiary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -642,12 +648,12 @@ class _ControlRow extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
+              color: (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.list_bullet_below_rectangle,
-              color: YYColors.textPrimary,
+              color: context.yyTextPrimary,
             ),
           ),
         ),
@@ -671,6 +677,7 @@ class _RoundControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -678,13 +685,13 @@ class _RoundControl extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           gradient: primary ? YYColors.accentGradient : null,
-          color: primary ? null : Colors.white.withValues(alpha: 0.06),
+          color: primary ? null : (isDark ? Colors.white : Colors.black).withValues(alpha: isDark ? 0.06 : 0.04),
           shape: BoxShape.circle,
           boxShadow: primary ? YYShadows.accentGlow(YYColors.accentPrimary) : null,
         ),
         child: Icon(
           icon,
-          color: Colors.white,
+          color: primary ? Colors.white : context.yyTextPrimary,
           size: primary ? 30 : 22,
         ),
       ),

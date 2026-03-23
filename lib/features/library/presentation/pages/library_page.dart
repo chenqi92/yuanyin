@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/theme.dart';
-import '../../../../shared/widgets/modern_music_ui.dart';
-import '../../../player/domain/entities/music_item.dart';
-import '../../../player/presentation/providers/player_provider.dart';
 import '../providers/library_provider.dart';
 import '../../../playlist/data/services/playlist_service.dart';
 import '../../../playlist/presentation/pages/playlist_detail_page.dart';
@@ -21,223 +18,233 @@ class LibraryPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: YYScenicBackground(
-        accent: YYColors.accentTertiary,
-        child: SafeArea(
-          bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 28),
-            children: [
-              YYPageHeader(
-                eyebrow: '内容总览',
-                title: '音乐库',
-                subtitle: library.stats.songCount == 0
-                    ? null
-                    : '${library.stats.songCount} 首歌曲',
-                trailing: YYHeaderActionButton(
-                  icon: CupertinoIcons.plus,
-                  onTap: () => _showCreatePlaylist(
-                    context,
-                    ref,
-                    context.yyBgElevated,
-                    context.yyTextPrimary,
-                    context.yyTextTertiary,
-                    context.yyBgSurface,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 28),
+          children: [
+            // 页头
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '音乐库',
+                      style: TextStyle(
+                        color: context.yyTextPrimary,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
                   ),
-                ),
+                  if (library.stats.songCount > 0)
+                    Text(
+                      '${library.stats.songCount} 首',
+                      style: TextStyle(
+                        color: context.yyTextTertiary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
               ),
-              _OverviewCard(library: library),
-              const YYSectionTitle(title: '分类浏览'),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 分类浏览 — 2x2 网格
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CategoryCard(
+                          title: '艺术家',
+                          count: library.artists.length,
+                          icon: CupertinoIcons.music_mic,
+                          color: const Color(0xFFF59E0B),
+                          onTap: () => _showArtistList(context, ref),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CategoryCard(
+                          title: '专辑',
+                          count: library.albums.length,
+                          icon: CupertinoIcons.square_stack_3d_up_fill,
+                          color: const Color(0xFF0EA5E9),
+                          onTap: () => _showAlbumList(context, ref),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CategoryCard(
+                          title: '流派',
+                          count: library.genres.length,
+                          icon: CupertinoIcons.guitars,
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () => _showGenreList(context, ref),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CategoryCard(
+                          title: '全部歌曲',
+                          count: library.stats.songCount,
+                          icon: CupertinoIcons.music_note_list,
+                          color: const Color(0xFF34D399),
+                          onTap: () => _showAllSongs(context, ref),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // 歌单
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '歌单',
+                      style: TextStyle(
+                        color: context.yyTextPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _showCreatePlaylist(context, ref),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: context.yyBgSurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.plus, size: 14, color: context.yyTextSecondary),
+                          const SizedBox(width: 4),
+                          Text(
+                            '新建',
+                            style: TextStyle(
+                              color: context.yyTextSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            if (playlists.playlists.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _CategoryCard(
-                            title: '艺术家',
-                            subtitle: '按创作者进入',
-                            count: library.artists.length,
-                            icon: CupertinoIcons.music_mic,
-                            colors: const [
-                              Color(0xFFF59E0B),
-                              Color(0xFFF97316),
-                            ],
-                            onTap: () => _showArtistList(
-                              context,
-                              ref,
-                              context.yyBgElevated,
-                              context.yyTextPrimary,
-                              context.yyTextTertiary,
-                              context.yySeparator,
-                            ),
-                          ),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: context.yyBgSurface.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        CupertinoIcons.music_note_list,
+                        size: 32,
+                        color: context.yyTextTertiary.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '还没有歌单',
+                        style: TextStyle(
+                          color: context.yyTextSecondary,
+                          fontSize: 14,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _CategoryCard(
-                            title: '专辑',
-                            subtitle: '按发行归档浏览',
-                            count: library.albums.length,
-                            icon: CupertinoIcons.square_stack_3d_up_fill,
-                            colors: const [
-                              Color(0xFF22C7B8),
-                              Color(0xFF0EA5E9),
-                            ],
-                            onTap: () => _showAlbumList(
-                              context,
-                              ref,
-                              context.yyBgElevated,
-                              context.yyTextPrimary,
-                              context.yyTextTertiary,
-                              context.yySeparator,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _CategoryCard(
-                            title: '流派',
-                            subtitle: '按风格快速过滤',
-                            count: library.genres.length,
-                            icon: CupertinoIcons.guitars,
-                            colors: const [
-                              Color(0xFF8B5CF6),
-                              Color(0xFFEC4899),
-                            ],
-                            onTap: () => _showGenreList(
-                              context,
-                              ref,
-                              context.yyBgElevated,
-                              context.yyTextPrimary,
-                              context.yyTextTertiary,
-                              context.yySeparator,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _CategoryCard(
-                            title: '全部歌曲',
-                            subtitle: '完整曲库列表',
-                            count: library.stats.songCount,
-                            icon: CupertinoIcons.music_note_list,
-                            colors: const [
-                              Color(0xFF34D399),
-                              Color(0xFF22C7B8),
-                            ],
-                            onTap: () => _showAllSongs(context, ref),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              YYSectionTitle(
-                title: '你的歌单',
-                trailing: YYPillButton(
-                  label: '新建',
-                  compact: true,
-                  onTap: () => _showCreatePlaylist(
-                    context,
-                    ref,
-                    context.yyBgElevated,
-                    context.yyTextPrimary,
-                    context.yyTextTertiary,
-                    context.yyBgSurface,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              if (playlists.playlists.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: YYPanel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const YYIconBadge(
-                              icon: CupertinoIcons.music_note_list,
-                              color: YYColors.accentSecondary,
-                              size: 48,
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '还没有歌单',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '创建歌单来整理你的音乐',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        YYPillButton(
-                          label: '创建第一张歌单',
-                          icon: CupertinoIcons.plus,
-                          primary: true,
-                          onTap: () => _showCreatePlaylist(
-                            context,
-                            ref,
-                            context.yyBgElevated,
-                            context.yyTextPrimary,
-                            context.yyTextTertiary,
-                            context.yyBgSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ...playlists.playlists.map((playlist) {
-                return _PlaylistCard(
-                  title: playlist.name,
-                  count: playlist.songIds.length,
-                  colorIndex: playlist.colorIndex,
+
+            ...playlists.playlists.map((playlist) {
+              final palette = YYColors
+                  .categoryGradients[playlist.colorIndex % YYColors.categoryGradients.length];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: GestureDetector(
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          PlaylistDetailPage(playlistId: playlist.id),
+                      builder: (_) => PlaylistDetailPage(playlistId: playlist.id),
                     ),
                   ),
-                );
-              }),
-              if (library.recentPlays.isNotEmpty) ...[
-                const YYSectionTitle(title: '最近播放'),
-                ...library.recentPlays.take(6).map((song) {
-                  return YYTrackRow(
-                    song: song,
-                    active:
-                        ref.watch(playerProvider).currentSong?.id == song.id,
-                    onTap: () => ref
-                        .read(playerProvider.notifier)
-                        .playSong(song, queue: library.recentPlays),
-                  );
-                }),
-              ],
-            ],
-          ),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.first.withValues(alpha: context.isDark ? 0.08 : 0.05),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: palette.first.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(CupertinoIcons.music_note_list, color: palette.first, size: 18),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                playlist.name,
+                                style: TextStyle(
+                                  color: context.yyTextPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${playlist.songIds.length} 首',
+                                style: TextStyle(
+                                  color: context.yyTextTertiary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );
@@ -257,23 +264,12 @@ class LibraryPage extends ConsumerWidget {
     );
   }
 
-  void _showArtistList(
-    BuildContext context,
-    WidgetRef ref,
-    Color card,
-    Color pri,
-    Color tri,
-    Color sep,
-  ) {
+  void _showArtistList(BuildContext context, WidgetRef ref) {
     final artists = ref.read(libraryProvider).artists;
     _showPickerSheet(
       context,
-      '选择艺术家',
+      '艺术家',
       artists.map((item) => item.name).toList(),
-      card,
-      pri,
-      tri,
-      sep,
       (name) {
         final db = ref.read(musicDatabaseProvider);
         Navigator.push(
@@ -282,7 +278,6 @@ class LibraryPage extends ConsumerWidget {
             builder: (_) => SongListPage(
               type: SongListType.artist,
               title: name,
-              subtitle: '艺术家',
               loadSongs: () => db.getSongsByArtist(name),
             ),
           ),
@@ -291,76 +286,66 @@ class LibraryPage extends ConsumerWidget {
     );
   }
 
-  void _showAlbumList(
-    BuildContext context,
-    WidgetRef ref,
-    Color card,
-    Color pri,
-    Color tri,
-    Color sep,
-  ) {
+  void _showAlbumList(BuildContext context, WidgetRef ref) {
     final albums = ref.read(libraryProvider).albums;
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _PickerSheet(
-        title: '选择专辑',
-        card: card,
-        pri: pri,
-        tri: tri,
-        sep: sep,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: albums.length,
-          itemBuilder: (_, index) {
-            final album = albums[index];
-            return ListTile(
-              title: Text(
-                album.name,
-                style: TextStyle(color: pri, fontWeight: FontWeight.w700),
+      backgroundColor: context.yyBgElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text('专辑', style: TextStyle(
+                  color: ctx.yyTextPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Divider(height: 1, color: ctx.yySeparator),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: albums.length,
+                itemBuilder: (_, index) {
+                  final album = albums[index];
+                  return ListTile(
+                    title: Text(album.name, style: TextStyle(
+                        color: ctx.yyTextPrimary, fontWeight: FontWeight.w600)),
+                    subtitle: Text(album.artist, style: TextStyle(color: ctx.yyTextTertiary)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      final db = ref.read(musicDatabaseProvider);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongListPage(
+                            type: SongListType.album,
+                            title: album.name,
+                            subtitle: album.artist,
+                            loadSongs: () => db.getSongsByAlbum(album.name, album.artist),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
-              subtitle: Text(album.artist, style: TextStyle(color: tri)),
-              onTap: () {
-                Navigator.pop(ctx);
-                final db = ref.read(musicDatabaseProvider);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SongListPage(
-                      type: SongListType.album,
-                      title: album.name,
-                      subtitle: album.artist,
-                      loadSongs: () =>
-                          db.getSongsByAlbum(album.name, album.artist),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _showGenreList(
-    BuildContext context,
-    WidgetRef ref,
-    Color card,
-    Color pri,
-    Color tri,
-    Color sep,
-  ) {
+  void _showGenreList(BuildContext context, WidgetRef ref) {
     final genres = ref.read(libraryProvider).genres;
     _showPickerSheet(
       context,
-      '选择流派',
+      '流派',
       genres.map((item) => item.name).toList(),
-      card,
-      pri,
-      tri,
-      sep,
       (name) {
         final db = ref.read(musicDatabaseProvider);
         Navigator.push(
@@ -369,7 +354,6 @@ class LibraryPage extends ConsumerWidget {
             builder: (_) => SongListPage(
               type: SongListType.genre,
               title: name,
-              subtitle: '流派',
               loadSongs: () => db.getSongsByGenre(name),
             ),
           ),
@@ -382,69 +366,66 @@ class LibraryPage extends ConsumerWidget {
     BuildContext context,
     String title,
     List<String> items,
-    Color card,
-    Color pri,
-    Color tri,
-    Color sep,
     void Function(String) onPick,
   ) {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _PickerSheet(
-        title: title,
-        card: card,
-        pri: pri,
-        tri: tri,
-        sep: sep,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: items.length,
-          itemBuilder: (_, index) {
-            final item = items[index];
-            return ListTile(
-              title: Text(
-                item,
-                style: TextStyle(color: pri, fontWeight: FontWeight.w700),
+      backgroundColor: context.yyBgElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(title, style: TextStyle(
+                  color: ctx.yyTextPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Divider(height: 1, color: ctx.yySeparator),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: items.length,
+                itemBuilder: (_, index) {
+                  return ListTile(
+                    title: Text(items[index], style: TextStyle(
+                        color: ctx.yyTextPrimary, fontWeight: FontWeight.w600)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      onPick(items[index]);
+                    },
+                  );
+                },
               ),
-              onTap: () {
-                Navigator.pop(ctx);
-                onPick(item);
-              },
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _showCreatePlaylist(
-    BuildContext context,
-    WidgetRef ref,
-    Color card,
-    Color pri,
-    Color tri,
-    Color surface,
-  ) {
+  void _showCreatePlaylist(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
     showDialog(
       context: context,
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: card,
-        title: Text('新建歌单', style: TextStyle(color: pri)),
+        backgroundColor: context.yyBgElevated,
+        title: Text('新建歌单', style: TextStyle(color: context.yyTextPrimary)),
         content: TextField(
           controller: nameCtrl,
           autofocus: true,
-          style: TextStyle(color: pri),
+          style: TextStyle(color: context.yyTextPrimary),
           decoration: InputDecoration(
             hintText: '歌单名称',
-            hintStyle: TextStyle(color: tri),
+            hintStyle: TextStyle(color: context.yyTextTertiary),
             filled: true,
-            fillColor: surface,
+            fillColor: context.yyBgSurface,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
           ),
@@ -452,7 +433,7 @@ class LibraryPage extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('取消', style: TextStyle(color: tri)),
+            child: Text('取消', style: TextStyle(color: context.yyTextTertiary)),
           ),
           TextButton(
             onPressed: () {
@@ -462,10 +443,7 @@ class LibraryPage extends ConsumerWidget {
               }
               Navigator.pop(ctx);
             },
-            child: const Text(
-              '创建',
-              style: TextStyle(color: YYColors.accentPrimary),
-            ),
+            child: const Text('创建', style: TextStyle(color: YYColors.accentPrimary)),
           ),
         ],
       ),
@@ -473,269 +451,69 @@ class LibraryPage extends ConsumerWidget {
   }
 }
 
-class _OverviewCard extends ConsumerWidget {
-  final LibraryState library;
-
-  const _OverviewCard({required this.library});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: YYPanel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('曲库概览', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 10),
-            if (library.stats.songCount == 0)
-              Text(
-                '导入音乐后显示统计信息',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            const SizedBox(height: 16),
-            YYMetricBand(
-              items: [
-                YYMetricBandItem(
-                  label: '歌曲',
-                  value: '${library.stats.songCount}',
-                  tint: YYColors.accentPrimary,
-                ),
-                YYMetricBandItem(
-                  label: '艺术家',
-                  value: '${library.artists.length}',
-                  tint: YYColors.accentSecondary,
-                ),
-                YYMetricBandItem(
-                  label: '专辑',
-                  value: '${library.albums.length}',
-                  tint: YYColors.accentTertiary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: YYPillButton(
-                    label: '全部播放',
-                    icon: CupertinoIcons.play_fill,
-                    primary: true,
-                    onTap: () {
-                      if (library.allSongs.isNotEmpty) {
-                        ref
-                            .read(playerProvider.notifier)
-                            .playSong(
-                              library.allSongs.first,
-                              queue: library.allSongs,
-                            );
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: YYPillButton(
-                    label: '随机来一组',
-                    icon: CupertinoIcons.shuffle,
-                    onTap: () {
-                      final queue = List<MusicItem>.from(library.allSongs)
-                        ..shuffle();
-                      if (queue.isNotEmpty) {
-                        ref
-                            .read(playerProvider.notifier)
-                            .playSong(queue.first, queue: queue);
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// 分类卡片 — 精简版
 class _CategoryCard extends StatelessWidget {
   final String title;
-  final String subtitle;
   final int count;
   final IconData icon;
-  final List<Color> colors;
+  final Color color;
   final VoidCallback onTap;
 
   const _CategoryCard({
     required this.title,
-    required this.subtitle,
     required this.count,
     required this.icon,
-    required this.colors,
+    required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tone = colors.first;
-    return YYPanel(
-      color: tone.withValues(alpha: context.isDark ? 0.07 : 0.05),
+    return GestureDetector(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              YYIconBadge(icon: icon, color: colors.first, size: 40),
-              const Spacer(),
-              Icon(
-                Icons.arrow_outward_rounded,
-                size: 16,
-                color: context.yyTextTertiary,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(
-            '$count',
-            style: TextStyle(
-              color: context.yyTextPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(subtitle, style: Theme.of(context).textTheme.labelMedium),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlaylistCard extends StatelessWidget {
-  final String title;
-  final int count;
-  final int colorIndex;
-  final VoidCallback onTap;
-
-  const _PlaylistCard({
-    required this.title,
-    required this.count,
-    required this.colorIndex,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = YYColors
-        .categoryGradients[colorIndex % YYColors.categoryGradients.length];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: YYPanel(
-        color: palette.first.withValues(alpha: context.isDark ? 0.08 : 0.06),
-        onTap: onTap,
-        child: Row(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: context.isDark ? 0.08 : 0.05),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            YYIconBadge(
-              icon: CupertinoIcons.music_note_list,
-              color: palette.first,
-              size: 42,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    count == 0 ? '空歌单' : '$count 首歌曲',
-                    style: Theme.of(context).textTheme.bodyMedium,
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
+                  child: Icon(icon, color: color, size: 18),
+                ),
+                const Spacer(),
+                Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: TextStyle(
+                color: context.yyTextPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: context.yyBgSurface.withValues(
-                  alpha: context.isDark ? 0.64 : 0.9,
-                ),
-                borderRadius: BorderRadius.circular(YYRadius.full),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  color: context.yyTextPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+            const SizedBox(height: 4),
+            Text(
+              '$count',
+              style: TextStyle(
+                color: context.yyTextSecondary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PickerSheet extends StatelessWidget {
-  final String title;
-  final Color card;
-  final Color pri;
-  final Color tri;
-  final Color sep;
-  final Widget child;
-
-  const _PickerSheet({
-    required this.title,
-    required this.card,
-    required this.pri,
-    required this.tri,
-    required this.sep,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: card,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(YYRadius.bottomSheet),
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: tri.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(YYRadius.full),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                style: TextStyle(
-                  color: pri,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(height: 1, color: sep),
-              Flexible(child: child),
-            ],
-          ),
         ),
       ),
     );

@@ -1,9 +1,33 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import '../../../player/domain/entities/music_item.dart';
 
 final _log = Logger(printer: SimplePrinter());
+
+/// 群晖登录结果
+enum SynologyLoginStatus { success, otpRequired, failed }
+
+class SynologyLoginResult {
+  final SynologyLoginStatus status;
+  final String? sid;
+  final String? deviceId;
+  final String? errorMessage;
+
+  const SynologyLoginResult.success(this.sid, {this.deviceId})
+      : status = SynologyLoginStatus.success,
+        errorMessage = null;
+
+  const SynologyLoginResult.otpRequired()
+      : status = SynologyLoginStatus.otpRequired,
+        sid = null,
+        deviceId = null,
+        errorMessage = '需要二级验证码';
+
+  const SynologyLoginResult.failed(this.errorMessage)
+      : status = SynologyLoginStatus.failed,
+        sid = null,
+        deviceId = null;
+}
 
 /// 支持的音频扩展名
 const _audioExts = {
@@ -43,59 +67,176 @@ class SmbScanner {
   }
 
   /// 群晖 FileStation 登录获取 SID
-  Future<String?> synologyLogin({
+  ///
+  /// 支持 OTP 二级验证：
+  /// - 首次不带 otpCode 尝试登录
+  /// - 如果返回 error 403，则表示需要 OTP
+  /// - 携带 otpCode 重新登录
+  /// - 可选 deviceId 跳过后续 OTP
+  Future<SynologyLoginResult> synologyLogin({
     required String host,
     int port = 5000,
     required String username,
     required String password,
     bool useSsl = false,
+    String? otpCode,
+    String? deviceId,
   }) async {
     try {
       final protocol = useSsl ? 'https' : 'http';
       final url = '$protocol://$host:$port/webapi/auth.cgi';
-      final response = await _dio.get(url, queryParameters: {
+      final params = <String, String>{
         'api': 'SYNO.API.Auth',
-        'version': '3',
+        'version': '6',
         'method': 'login',
         'account': username,
         'passwd': password,
         'session': 'FileStation',
         'format': 'sid',
-      });
+      };
+
+      // OTP 支持
+      if (otpCode != null && otpCode.isNotEmpty) {
+        params['otp_code'] = otpCode;
+        params['enable_device_token'] = 'yes';
+        params['device_name'] = 'Primuse Music Player';
+      }
+
+      // 如有已保存的 device_id，可跳过 OTP
+      if (deviceId != null && deviceId.isNotEmpty) {
+        params['device_id'] = deviceId;
+      }
+
+      final response = await _dio.get(url, queryParameters: params);
 
       if (response.data is Map && response.data['success'] == true) {
-        return response.data['data']['sid'] as String?;
+        final sid = response.data['data']['sid'] as String?;
+        final did = response.data['data']['device_id'] as String?;
+        return SynologyLoginResult.success(sid, deviceId: did);
       }
+
+      // 检查错误码
+      final errorCode = response.data?['error']?['code'];
+      if (errorCode == 403) {
+        return const SynologyLoginResult.otpRequired();
+      }
+
       _log.w('群晖登录失败: ${response.data}');
-      return null;
+      return SynologyLoginResult.failed(
+        _synologyErrorMessage(errorCode),
+      );
+    } on DioException catch (e) {
+      return SynologyLoginResult.failed(_friendlyError(e));
     } catch (e) {
       _log.w('群晖登录异常: $e');
-      return null;
+      return SynologyLoginResult.failed(e.toString());
+    }
+  }
+
+  String _synologyErrorMessage(dynamic code) {
+    switch (code) {
+      case 400: return '用户名或密码错误';
+      case 401: return '账户已被停用';
+      case 402: return '权限不足';
+      case 403: return '需要二级验证码';
+      case 404: return '二级验证码错误';
+      case 406: return 'OTP 强制且未启用';
+      case 407: return '二级验证码有误，请重试';
+      default: return '登录失败 (错误码: $code)';
     }
   }
 
   /// 测试群晖连接（仅登录，不扫描）
   ///
   /// 返回 (success, errorMessage)
+  /// 当需要 OTP 时返回 (false, 'OTP_REQUIRED') 作为特殊标记
   Future<(bool, String?)> testSynologyConnection({
     required String host,
     int port = 5000,
     required String username,
     required String password,
     bool useSsl = false,
+    String? otpCode,
+    String? deviceId,
+  }) async {
+    final result = await synologyLogin(
+      host: host, port: port, username: username, password: password,
+      useSsl: useSsl, otpCode: otpCode, deviceId: deviceId,
+    );
+    switch (result.status) {
+      case SynologyLoginStatus.success:
+        return (true, null);
+      case SynologyLoginStatus.otpRequired:
+        return (false, 'OTP_REQUIRED');
+      case SynologyLoginStatus.failed:
+        return (false, result.errorMessage);
+    }
+  }
+
+  /// 列出群晖根目录下的共享文件夹
+  ///
+  /// 登录成功后调用，返回顶层共享目录名称列表
+  Future<List<String>> listSynologySharedFolders({
+    required String host,
+    int port = 5000,
+    required String sid,
+    bool useSsl = false,
   }) async {
     try {
-      final sid = await synologyLogin(
-        host: host, port: port, username: username, password: password, useSsl: useSsl,
-      );
-      if (sid != null) {
-        return (true, null);
+      final protocol = useSsl ? 'https' : 'http';
+      final url = '$protocol://$host:$port/webapi/entry.cgi';
+      final response = await _dio.get(url, queryParameters: {
+        'api': 'SYNO.FileStation.List',
+        'version': '2',
+        'method': 'list_share',
+        '_sid': sid,
+      });
+
+      if (response.data is Map && response.data['success'] == true) {
+        final shares = response.data['data']['shares'] as List? ?? [];
+        return shares.map<String>((s) => s['path'] as String).toList();
       }
-      return (false, '登录失败：用户名或密码错误');
-    } on DioException catch (e) {
-      return (false, _friendlyError(e));
+      return [];
     } catch (e) {
-      return (false, e.toString());
+      _log.w('列出群晖共享文件夹失败: $e');
+      return [];
+    }
+  }
+
+  /// 列出群晖指定目录下的子文件夹（用于下钻浏览）
+  ///
+  /// 返回 (name, path) 列表
+  Future<List<({String name, String path})>> listSynologySubFolders({
+    required String host,
+    int port = 5000,
+    required String sid,
+    required String folderPath,
+    bool useSsl = false,
+  }) async {
+    try {
+      final protocol = useSsl ? 'https' : 'http';
+      final url = '$protocol://$host:$port/webapi/entry.cgi';
+      final response = await _dio.get(url, queryParameters: {
+        'api': 'SYNO.FileStation.List',
+        'version': '2',
+        'method': 'list',
+        'folder_path': folderPath,
+        'sort_by': 'name',
+        'sort_direction': 'asc',
+        '_sid': sid,
+      });
+
+      if (response.data is Map && response.data['success'] == true) {
+        final files = response.data['data']['files'] as List? ?? [];
+        return files
+            .where((f) => f['isdir'] == true)
+            .map<({String name, String path})>((f) => (name: f['name'] as String, path: f['path'] as String))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      _log.w('列出群晖子目录失败: $folderPath - $e');
+      return [];
     }
   }
 

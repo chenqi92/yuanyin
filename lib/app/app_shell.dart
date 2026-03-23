@@ -80,41 +80,57 @@ class _AppShellState extends ConsumerState<AppShell> {
 
           return Scaffold(
             backgroundColor: context.yyBgBase,
-            body: YYScenicBackground(child: widget.navigationShell),
-            bottomNavigationBar: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    axisAlignment: -1,
-                    child: child,
+            // 不使用 bottomNavigationBar —— 让 body 内容延伸到屏幕底部，
+            // 导航栏通过 Stack 浮在内容上方，实现 iOS 26 透明穿透效果。
+            body: Stack(
+              children: [
+                Positioned.fill(
+                  child: YYScenicBackground(child: widget.navigationShell),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 1),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: showNavigation
+                        ? _ShellBottomArea(
+                            key: const ValueKey('shell-navigation-visible'),
+                            hasSong: hasSong,
+                            isIOS: isIOS,
+                            child: _BottomNavigation(
+                              currentIndex:
+                                  widget.navigationShell.currentIndex,
+                              onTap: (index) {
+                                ShellNavigationVisibility.instance.reset();
+                                widget.navigationShell.goBranch(
+                                  index,
+                                  initialLocation: index ==
+                                      widget.navigationShell.currentIndex,
+                                );
+                              },
+                            ),
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey('shell-navigation-hidden'),
+                          ),
                   ),
-                );
-              },
-              child: showNavigation
-                  ? _ShellBottomArea(
-                      key: const ValueKey('shell-navigation-visible'),
-                      hasSong: hasSong,
-                      isIOS: isIOS,
-                      child: _BottomNavigation(
-                        currentIndex: widget.navigationShell.currentIndex,
-                        onTap: (index) {
-                          ShellNavigationVisibility.instance.reset();
-                          widget.navigationShell.goBranch(
-                            index,
-                            initialLocation:
-                                index == widget.navigationShell.currentIndex,
-                          );
-                        },
-                      ),
-                    )
-                  : const SizedBox.shrink(
-                      key: ValueKey('shell-navigation-hidden'),
-                    ),
+                ),
+              ],
             ),
           );
         },

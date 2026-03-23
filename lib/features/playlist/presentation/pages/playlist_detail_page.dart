@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,6 @@ import '../../../../shared/widgets/gradient_cover.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../player/domain/entities/music_item.dart';
 import '../../../player/presentation/providers/player_provider.dart';
-import '../../../library/data/services/music_database_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../data/services/playlist_service.dart';
 import '../../data/services/playlist_io_service.dart';
@@ -61,15 +59,9 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? YYColors.bgBase : YYLightColors.bgBase;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-
     if (_isLoading || _playlist == null) {
       return Scaffold(
-        backgroundColor: bg,
+        backgroundColor: context.yyBgBase,
         body: const Center(child: CircularProgressIndicator(color: YYColors.accentPrimary)),
       );
     }
@@ -79,16 +71,16 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
     final playerState = ref.watch(playerProvider);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: context.yyBgBase,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: Colors.transparent,
-            foregroundColor: pri,
+            foregroundColor: context.yyTextPrimary,
             expandedHeight: 200,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(playlist.name, style: TextStyle(color: pri, fontWeight: FontWeight.bold, fontSize: 18)),
+              title: Text(playlist.name, style: TextStyle(color: context.yyTextPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
               background: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -124,7 +116,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
                 children: [
-                  Text('${_songs.length} 首歌曲', style: TextStyle(color: tri, fontSize: 13)),
+                  Text('${_songs.length} 首歌曲', style: TextStyle(color: context.yyTextTertiary, fontSize: 13)),
                   if (_isReordering) ...[
                     const SizedBox(width: 8),
                     Container(
@@ -133,7 +125,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
                         color: YYColors.accentPrimary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text('拖拽排序中', style: TextStyle(
+                      child: const Text('拖拽排序中', style: TextStyle(
                         color: YYColors.accentPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
                   ],
@@ -144,7 +136,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
           if (_songs.isEmpty)
             SliverFillRemaining(
               child: Center(child: Text('歌单是空的\n从歌曲列表添加歌曲到这里',
-                  style: TextStyle(color: tri, fontSize: 14), textAlign: TextAlign.center)),
+                  style: TextStyle(color: context.yyTextTertiary, fontSize: 14), textAlign: TextAlign.center)),
             ),
           if (_isReordering)
             SliverReorderableList(
@@ -163,7 +155,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
                     showDragHandle: true,
                     onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
                     onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
-                    pri: pri, sub: sub, tri: tri,
                   ),
                 );
               },
@@ -184,7 +175,6 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
                       showDragHandle: false,
                       onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
                       onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
-                      pri: pri, sub: sub, tri: tri,
                     ).animate().fadeIn(delay: (30 * index).ms, duration: 300.ms);
                   },
                   childCount: _songs.length,
@@ -211,27 +201,22 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
   }
 
   void _showOptions(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final card = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
-      backgroundColor: card,
+      backgroundColor: context.yyBgElevated,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(CupertinoIcons.pencil, color: pri),
-              title: Text('重命名', style: TextStyle(color: pri)),
-              onTap: () { Navigator.pop(context); _renamePlaylist(card, pri, tri); },
+              leading: Icon(CupertinoIcons.pencil, color: context.yyTextPrimary),
+              title: Text('重命名', style: TextStyle(color: context.yyTextPrimary)),
+              onTap: () { Navigator.pop(context); _renamePlaylist(); },
             ),
             ListTile(
-              leading: Icon(CupertinoIcons.share, color: pri),
-              title: Text('导出为 M3U', style: TextStyle(color: pri)),
+              leading: Icon(CupertinoIcons.share, color: context.yyTextPrimary),
+              title: Text('导出为 M3U', style: TextStyle(color: context.yyTextPrimary)),
               onTap: () {
                 Navigator.pop(context);
                 _exportPlaylist();
@@ -274,19 +259,19 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
     }
   }
 
-  void _renamePlaylist(Color card, Color pri, Color tri) {
+  void _renamePlaylist() {
     final controller = TextEditingController(text: _playlist?.name ?? '');
     showDialog(
       context: context,
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: card,
-        title: Text('重命名歌单', style: TextStyle(color: pri)),
+        backgroundColor: context.yyBgElevated,
+        title: Text('重命名歌单', style: TextStyle(color: context.yyTextPrimary)),
         content: TextField(
           controller: controller,
-          style: TextStyle(color: pri),
+          style: TextStyle(color: context.yyTextPrimary),
           autofocus: true,
-          decoration: InputDecoration(hintText: '歌单名称', hintStyle: TextStyle(color: tri)),
+          decoration: InputDecoration(hintText: '歌单名称', hintStyle: TextStyle(color: context.yyTextTertiary)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
@@ -315,9 +300,6 @@ class _SongTile extends StatelessWidget {
   final bool showDragHandle;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
-  final Color pri;
-  final Color sub;
-  final Color tri;
 
   const _SongTile({
     super.key,
@@ -327,9 +309,6 @@ class _SongTile extends StatelessWidget {
     required this.showDragHandle,
     required this.onTap,
     required this.onLongPress,
-    required this.pri,
-    required this.sub,
-    required this.tri,
   });
 
   @override
@@ -346,13 +325,13 @@ class _SongTile extends StatelessWidget {
               if (showDragHandle)
                 Padding(
                   padding: const EdgeInsets.only(right: 10),
-                  child: Icon(CupertinoIcons.line_horizontal_3, size: 18, color: tri),
+                  child: Icon(CupertinoIcons.line_horizontal_3, size: 18, color: context.yyTextTertiary),
                 )
               else
                 SizedBox(
                   width: 24,
                   child: Text('${index + 1}', style: TextStyle(
-                      color: isPlaying ? YYColors.accentPrimary : tri, fontSize: 14),
+                      color: isPlaying ? YYColors.accentPrimary : context.yyTextTertiary, fontSize: 14),
                       textAlign: TextAlign.center),
                 ),
               const SizedBox(width: 14),
@@ -366,14 +345,14 @@ class _SongTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(song.title, style: TextStyle(
-                        color: isPlaying ? YYColors.accentPrimary : pri,
+                        color: isPlaying ? YYColors.accentPrimary : context.yyTextPrimary,
                         fontWeight: FontWeight.w500, fontSize: 15),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text(song.artist, style: TextStyle(color: sub, fontSize: 12)),
+                    Text(song.artist, style: TextStyle(color: context.yyTextSecondary, fontSize: 12)),
                   ],
                 ),
               ),
-              Text(song.durationText, style: TextStyle(color: tri, fontSize: 12)),
+              Text(song.durationText, style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
             ],
           ),
         ),

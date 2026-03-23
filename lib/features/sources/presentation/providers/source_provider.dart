@@ -105,10 +105,13 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
   Future<void> addSynologySource({
     required String name,
     required String host,
-    int port = 5000,
+    int port = 5001,
     required String username,
     required String password,
     required String folderPath,
+    bool useSsl = true,
+    String? deviceToken,
+    String? otpCode,
   }) async {
     final source = SourceEntity(
       id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
@@ -119,11 +122,13 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
       port: port,
       username: username,
       password: password,
+      useSsl: useSsl,
+      deviceToken: deviceToken,
       status: SourceStatus.connecting,
     );
     await _repository.add(source);
     state = state.copyWith(sources: [...state.sources, source]);
-    await scanSource(source.id);
+    await scanSource(source.id, otpCode: otpCode);
   }
 
   /// 添加 SMB 数据源
@@ -158,7 +163,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
   /// 测试数据源连接（不扫描）
   ///
   /// 返回 (success, errorMessage)
-  Future<(bool, String?)> testConnection(SourceEntity source) async {
+  Future<(bool, String?)> testConnection(SourceEntity source, {String? otpCode}) async {
     switch (source.type) {
       case SourceType.local:
         final dir = Directory(source.path);
@@ -181,6 +186,8 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
           username: source.username!,
           password: source.password!,
           useSsl: source.useSsl,
+          otpCode: otpCode,
+          deviceId: source.deviceToken,
         );
 
       case SourceType.smb:
@@ -211,6 +218,43 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
 
   // ---- 自动重连 ----
 
+  /// 群晖登录（公开方法，供 UI 使用）
+  Future<SynologyLoginResult> synologyLogin(SourceEntity source, {String? otpCode}) {
+    return _smbScanner.synologyLogin(
+      host: source.host!,
+      port: source.port ?? 5000,
+      username: source.username!,
+      password: source.password!,
+      useSsl: source.useSsl,
+      otpCode: otpCode,
+      deviceId: source.deviceToken,
+    );
+  }
+
+  /// 列出群晖共享文件夹（登录成功后调用）
+  Future<List<String>> listSynologyFolders(SourceEntity source, String sid) {
+    return _smbScanner.listSynologySharedFolders(
+      host: source.host!,
+      port: source.port ?? 5000,
+      sid: sid,
+      useSsl: source.useSsl,
+    );
+  }
+
+  /// 列出群晖指定路径下的子文件夹（下钻浏览）
+  Future<List<({String name, String path})>> listSynologySubFolders({
+    required String host,
+    required int port,
+    required String sid,
+    required String folderPath,
+    required bool useSsl,
+  }) {
+    return _smbScanner.listSynologySubFolders(
+      host: host, port: port, sid: sid,
+      folderPath: folderPath, useSsl: useSsl,
+    );
+  }
+
   /// 启动时自动扫描所有 autoConnect 数据源
   Future<void> autoReconnectAll() async {
     for (final source in state.sources) {
@@ -223,7 +267,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
   // ---- 扫描 ----
 
   /// 扫描指定数据源
-  Future<void> scanSource(String sourceId) async {
+  Future<void> scanSource(String sourceId, {String? otpCode}) async {
     final sourceIndex = state.sources.indexWhere((s) => s.id == sourceId);
     if (sourceIndex == -1) return;
 
@@ -247,18 +291,28 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
           );
           break;
         case SourceType.synology:
-          final sid = await _smbScanner.synologyLogin(
+          final loginResult = await _smbScanner.synologyLogin(
             host: source.host!,
             port: source.port ?? 5000,
             username: source.username!,
             password: source.password!,
             useSsl: source.useSsl,
+            otpCode: otpCode,
+            deviceId: source.deviceToken,
           );
-          if (sid == null) throw Exception('群晖登录失败');
+          if (loginResult.status != SynologyLoginStatus.success || loginResult.sid == null) {
+            throw Exception(loginResult.errorMessage ?? '群晖登录失败');
+          }
+          // 保存返回的 device_id
+          if (loginResult.deviceId != null && loginResult.deviceId != source.deviceToken) {
+            final withToken = source.copyWith(deviceToken: loginResult.deviceId);
+            await _repository.update(withToken);
+            _updateSourceInList(sourceIndex, withToken);
+          }
           songs = await _smbScanner.scanSynology(
             host: source.host!,
             port: source.port ?? 5000,
-            sid: sid,
+            sid: loginResult.sid!,
             folderPath: source.path,
             onProgress: _onProgress,
           );

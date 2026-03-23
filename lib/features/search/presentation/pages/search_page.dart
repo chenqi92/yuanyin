@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/theme.dart';
-import '../../../../shared/widgets/modern_music_ui.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../player/domain/entities/music_item.dart';
@@ -42,9 +41,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   Future<void> _loadHistory() async {
     final history = await ref.read(searchHistoryProvider).getHistory();
-    if (mounted) {
-      setState(() => _history = history);
-    }
+    if (mounted) setState(() => _history = history);
   }
 
   Future<void> _doSearch(String value) async {
@@ -55,10 +52,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
 
     if (value.trim().isEmpty) {
-      setState(() {
-        _results = [];
-        _searching = false;
-      });
+      setState(() { _results = []; _searching = false; });
       return;
     }
 
@@ -69,18 +63,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final results = await db.search(value);
 
     if (mounted) {
-      setState(() {
-        _results = results;
-        _searching = false;
-      });
+      setState(() { _results = results; _searching = false; });
     }
   }
 
   void _scheduleSearch(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 220), () {
-      _doSearch(value);
-    });
+    _debounce = Timer(const Duration(milliseconds: 220), () => _doSearch(value));
   }
 
   void _applyQuery(String value) {
@@ -91,508 +80,239 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _doSearch(value);
   }
 
-  Future<void> _removeHistoryItem(String value) async {
-    await ref.read(searchHistoryProvider).removeSearch(value);
-    await _loadHistory();
-  }
-
   Future<void> _clearHistory() async {
     await ref.read(searchHistoryProvider).clearAll();
-    if (!mounted) return;
-    setState(() => _history = []);
+    if (mounted) setState(() => _history = []);
   }
 
   @override
   Widget build(BuildContext context) {
-    final library = ref.watch(libraryProvider);
     final player = ref.watch(playerProvider);
-    final suggestionTerms = {
-      ..._history.take(3),
-      ...library.genres.map((genre) => genre.name),
-    }.take(8).toList();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: YYScenicBackground(
-        accent: _query.isEmpty
-            ? YYColors.accentSecondary
-            : YYSeedPalette.primary(_query),
-        child: SafeArea(
-          bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 28),
-            children: [
-              const YYPageHeader(
-                eyebrow: '精准定位',
-                title: '搜索',
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _SearchFieldCard(
-                  controller: _controller,
-                  query: _query,
-                  resultCount: _results.length,
-                  searching: _searching,
-                  onChanged: _scheduleSearch,
-                  onClear: () {
-                    _controller.clear();
-                    _doSearch('');
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: _query.isEmpty
-                    ? Column(
-                        key: const ValueKey('search-idle'),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: _SearchOverviewCard(
-                              songCount: library.allSongs.length,
-                              artistCount: library.artists.length,
-                              albumCount: library.albums.length,
-                              suggestions: suggestionTerms,
-                              onSuggestionTap: _applyQuery,
-                            ),
-                          ),
-                          if (_history.isNotEmpty) ...[
-                            YYSectionTitle(
-                              title: '最近搜索',
-                              trailing: YYPillButton(
-                                label: '清空',
-                                compact: true,
-                                onTap: _clearHistory,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: _history.map((item) {
-                                  return _HistoryChip(
-                                    label: item,
-                                    onTap: () => _applyQuery(item),
-                                    onRemove: () => _removeHistoryItem(item),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ],
-                          if (library.recentPlays.isNotEmpty) ...[
-                            const YYSectionTitle(
-                              title: '最近播放',
-                            ),
-                            ...library.recentPlays.take(6).map((song) {
-                              return YYTrackRow(
-                                song: song,
-                                active: player.currentSong?.id == song.id,
-                                onTap: () => ref
-                                    .read(playerProvider.notifier)
-                                    .playSong(song, queue: library.recentPlays),
-                                onLongPress: () =>
-                                    showSongActions(context, ref, song),
-                              );
-                            }),
-                          ],
-                        ],
-                      )
-                    : Column(
-                        key: const ValueKey('search-results'),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: _ResultSummaryCard(
-                              query: _query,
-                              searching: _searching,
-                              resultCount: _results.length,
-                              libraryCount: library.allSongs.length,
-                            ),
-                          ),
-                          YYSectionTitle(
-                            title: _searching ? '正在搜索' : '结果列表',
-                          ),
-                          if (_searching)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 30),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: YYColors.accentPrimary,
-                                ),
-                              ),
-                            ),
-                          if (!_searching && _results.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: YYPanel(
-                                child: Column(
-                                  children: [
-                                    const YYIconBadge(
-                                      icon: CupertinoIcons.search_circle,
-                                      color: YYColors.accentSecondary,
-                                      size: 52,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      '没有找到匹配项',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleLarge,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '换个关键词，或者试试艺术家 / 专辑名。',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (!_searching)
-                            ..._results.map((song) {
-                              return YYTrackRow(
-                                song: song,
-                                active: player.currentSong?.id == song.id,
-                                subtitle: '${song.artist} · ${song.album}',
-                                onTap: () => ref
-                                    .read(playerProvider.notifier)
-                                    .playSong(song, queue: _results),
-                                onLongPress: () =>
-                                    showSongActions(context, ref, song),
-                              );
-                            }),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SearchFieldCard extends StatelessWidget {
-  const _SearchFieldCard({
-    required this.controller,
-    required this.query,
-    required this.resultCount,
-    required this.searching,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final int resultCount;
-  final bool searching;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final badgeLabel = query.isEmpty
-        ? '本地曲库'
-        : searching
-        ? '搜索中'
-        : '$resultCount 条';
-
-    return YYPanel(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Icon(CupertinoIcons.search, color: context.yyTextTertiary, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              style: TextStyle(
-                color: context.yyTextPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                hintText: '搜索歌曲、艺术家、专辑、流派',
-                hintStyle: TextStyle(
-                  color: context.yyTextTertiary,
-                  fontWeight: FontWeight.w500,
-                ),
-                border: InputBorder.none,
-                isDense: true,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: context.yyBgSurface.withValues(
-                alpha: context.isDark ? 0.72 : 0.9,
-              ),
-              borderRadius: BorderRadius.circular(YYRadius.full),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (searching) ...[
-                  const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: YYColors.accentPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  badgeLabel,
-                  style: TextStyle(
-                    color: context.yyTextSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (query.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Material(
-              color: Colors.transparent,
-              child: Ink(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: context.yyBgSurface.withValues(
-                    alpha: context.isDark ? 0.72 : 0.9,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: InkWell(
-                  onTap: onClear,
-                  customBorder: const CircleBorder(),
-                  overlayColor: WidgetStatePropertyAll(
-                    context.yyTextPrimary.withValues(alpha: 0.05),
-                  ),
-                  child: Icon(
-                    CupertinoIcons.xmark,
-                    color: context.yyTextTertiary,
-                    size: 14,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchOverviewCard extends StatelessWidget {
-  const _SearchOverviewCard({
-    required this.songCount,
-    required this.artistCount,
-    required this.albumCount,
-    required this.suggestions,
-    required this.onSuggestionTap,
-  });
-
-  final int songCount;
-  final int artistCount;
-  final int albumCount;
-  final List<String> suggestions;
-  final ValueChanged<String> onSuggestionTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return YYPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('检索范围', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          YYMetricBand(
-            items: [
-              YYMetricBandItem(
-                label: '歌曲',
-                value: '$songCount',
-                tint: YYColors.accentPrimary,
-              ),
-              YYMetricBandItem(
-                label: '艺术家',
-                value: '$artistCount',
-                tint: YYColors.accentSecondary,
-              ),
-              YYMetricBandItem(
-                label: '专辑',
-                value: '$albumCount',
-                tint: YYColors.accentTertiary,
-              ),
-            ],
-          ),
-          if (suggestions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              '推荐关键词',
-              style: TextStyle(
-                color: context.yyTextSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: suggestions.map((term) {
-                return YYTag(
-                  text: term,
-                  color: YYSeedPalette.primary(term),
-                  onTap: () => onSuggestionTap(term),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryChip extends StatelessWidget {
-  const _HistoryChip({
-    required this.label,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: context.yyBgElevated.withValues(
-            alpha: context.isDark ? 0.88 : 0.97,
-          ),
-          borderRadius: BorderRadius.circular(YYRadius.full),
-          border: Border.all(color: context.yySeparator),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
           children: [
-            InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(YYRadius.full),
-              overlayColor: WidgetStatePropertyAll(
-                context.yyTextPrimary.withValues(alpha: 0.04),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+            // 搜索框
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  color: context.yyBgSurface,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      CupertinoIcons.time,
-                      size: 14,
-                      color: YYColors.accentPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: context.yyTextSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    Icon(CupertinoIcons.search, color: context.yyTextTertiary, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        onChanged: _scheduleSearch,
+                        style: TextStyle(
+                          color: context.yyTextPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '搜索歌曲、艺术家、专辑',
+                          hintStyle: TextStyle(
+                            color: context.yyTextTertiary,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
                       ),
                     ),
+                    if (_query.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _controller.clear();
+                          _doSearch('');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: context.yyTextTertiary.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(CupertinoIcons.xmark, size: 12, color: context.yyTextTertiary),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onRemove,
-                customBorder: const CircleBorder(),
-                overlayColor: WidgetStatePropertyAll(
-                  context.yyTextPrimary.withValues(alpha: 0.04),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Icon(
-                    CupertinoIcons.xmark,
-                    size: 12,
-                    color: context.yyTextTertiary,
-                  ),
-                ),
-              ),
+
+            const SizedBox(height: 12),
+
+            // 内容区
+            Expanded(
+              child: _query.isEmpty
+                  ? _buildIdleState(context)
+                  : _buildResults(context, player),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _ResultSummaryCard extends StatelessWidget {
-  const _ResultSummaryCard({
-    required this.query,
-    required this.searching,
-    required this.resultCount,
-    required this.libraryCount,
-  });
+  /// 空状态：仅搜索历史
+  Widget _buildIdleState(BuildContext context) {
+    if (_history.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.search,
+              size: 40,
+              color: context.yyTextTertiary.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '搜索你的曲库',
+              style: TextStyle(color: context.yyTextTertiary, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
 
-  final String query;
-  final bool searching;
-  final int resultCount;
-  final int libraryCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return YYPanel(
-      color: context.yyBlend(YYSeedPalette.primary(query), amount: 0.08),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            searching ? '正在搜索 “$query”' : '“$query” 的结果',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 14),
-          YYMetricBand(
-            items: [
-              YYMetricBandItem(
-                label: '匹配结果',
-                value: '$resultCount',
-                tint: YYColors.accentPrimary,
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '最近搜索',
+                style: TextStyle(
+                  color: context.yyTextSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              YYMetricBandItem(
-                label: '总曲库',
-                value: '$libraryCount',
-                tint: YYColors.accentSecondary,
+            ),
+            GestureDetector(
+              onTap: _clearHistory,
+              child: Text(
+                '清空',
+                style: TextStyle(
+                  color: context.yyTextTertiary,
+                  fontSize: 13,
+                ),
               ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ..._history.map((item) => GestureDetector(
+          onTap: () => _applyQuery(item),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.yySeparator, width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.time, size: 16, color: context.yyTextTertiary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item,
+                    style: TextStyle(
+                      color: context.yyTextPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Icon(CupertinoIcons.arrow_up_left, size: 14, color: context.yyTextTertiary),
+              ],
+            ),
           ),
-        ],
-      ),
+        )),
+      ],
+    );
+  }
+
+  /// 搜索结果
+  Widget _buildResults(BuildContext context, PlayerState player) {
+    if (_searching) {
+      return const Center(
+        child: CircularProgressIndicator(color: YYColors.accentPrimary),
+      );
+    }
+
+    if (_results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.search,
+              size: 40,
+              color: context.yyTextTertiary.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '没有找到 "$_query"',
+              style: TextStyle(color: context.yyTextSecondary, fontSize: 15),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      itemCount: _results.length,
+      itemBuilder: (context, index) {
+        final song = _results[index];
+        final isActive = player.currentSong?.id == song.id;
+        return ListTile(
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                HSLColor.fromAHSL(1.0, (song.title.hashCode % 360).toDouble(), 0.5, 0.4).toColor(),
+                HSLColor.fromAHSL(1.0, ((song.title.hashCode + 40) % 360).toDouble(), 0.4, 0.3).toColor(),
+              ]),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: isActive
+                ? const Icon(CupertinoIcons.waveform, color: Colors.white, size: 16)
+                : const Icon(CupertinoIcons.music_note, color: Colors.white, size: 16),
+          ),
+          title: Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isActive ? YYColors.accentPrimary : context.yyTextPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: Text(
+            '${song.artist} · ${song.album}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.yyTextTertiary, fontSize: 12),
+          ),
+          onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _results),
+          onLongPress: () => showSongActions(context, ref, song),
+        );
+      },
     );
   }
 }

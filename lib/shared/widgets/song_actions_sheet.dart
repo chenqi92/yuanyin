@@ -7,7 +7,6 @@ import '../../features/player/presentation/providers/player_provider.dart';
 import '../../features/favorites/data/services/favorites_service.dart';
 import '../../features/playlist/data/services/playlist_service.dart';
 import '../../features/library/data/services/metadata_scraper.dart';
-import '../../features/library/data/services/music_database_service.dart';
 import '../../features/library/presentation/providers/library_provider.dart';
 
 /// 歌曲操作底部弹窗 — 自适应亮暗主题
@@ -17,13 +16,10 @@ void showSongActions(
   MusicItem song, {
   String? playlistId,
 }) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final sheetBg = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-
   showModalBottomSheet(
     context: context,
     useRootNavigator: true,
-    backgroundColor: sheetBg,
+    backgroundColor: context.yyBgElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -53,11 +49,6 @@ class _SongActionsContentState extends ConsumerState<_SongActionsContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-    final sep = isDark ? YYColors.separator : YYLightColors.separator;
-
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -83,10 +74,10 @@ class _SongActionsContentState extends ConsumerState<_SongActionsContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(widget.song.title, style: TextStyle(
-                          color: pri, fontWeight: FontWeight.w600, fontSize: 16),
+                          color: context.yyTextPrimary, fontWeight: FontWeight.w600, fontSize: 16),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text('${widget.song.artist} · ${widget.song.album}',
-                          style: TextStyle(color: sub, fontSize: 13),
+                          style: TextStyle(color: context.yyTextSecondary, fontSize: 13),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ],
                   ),
@@ -94,7 +85,7 @@ class _SongActionsContentState extends ConsumerState<_SongActionsContent> {
               ],
             ),
           ),
-          Divider(height: 1, color: sep),
+          Divider(height: 1, color: context.yySeparator),
           _ActionTile(icon: CupertinoIcons.arrow_right_circle, title: '下一首播放', onTap: () {
             ref.read(playerProvider.notifier).addNextInQueue(widget.song);
             Navigator.pop(context);
@@ -148,38 +139,30 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
     return ListTile(
-      leading: Icon(icon, color: iconColor ?? pri, size: 22),
-      title: Text(title, style: TextStyle(color: pri, fontSize: 16)),
+      leading: Icon(icon, color: iconColor ?? context.yyTextPrimary, size: 22),
+      title: Text(title, style: TextStyle(color: context.yyTextPrimary, fontSize: 16)),
       onTap: onTap,
     );
   }
 }
 
 void _showSnack(BuildContext context, String message) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
   ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
     content: Text(message),
     behavior: SnackBarBehavior.floating,
     duration: const Duration(seconds: 2),
-    backgroundColor: isDark ? YYColors.bgElevated : YYLightColors.bgElevated,
+    backgroundColor: context.yyBgElevated,
   ));
 }
 
 void _showPlaylistPicker(BuildContext context, WidgetRef ref, MusicItem song) {
   final playlists = ref.read(playlistsProvider).playlists;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final sheetBg = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-  final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-  final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-  final sep = isDark ? YYColors.separator : YYLightColors.separator;
 
   showModalBottomSheet(
     context: context,
     useRootNavigator: true,
-    backgroundColor: sheetBg,
+    backgroundColor: context.yyBgElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -190,18 +173,18 @@ void _showPlaylistPicker(BuildContext context, WidgetRef ref, MusicItem song) {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text('添加到歌单', style: TextStyle(
-                color: pri, fontSize: 18, fontWeight: FontWeight.bold)),
+                color: ctx.yyTextPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           ),
-          Divider(height: 1, color: sep),
+          Divider(height: 1, color: ctx.yySeparator),
           if (playlists.isEmpty)
             Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('还没有歌单', style: TextStyle(color: tri, fontSize: 14)),
+              child: Text('还没有歌单', style: TextStyle(color: ctx.yyTextTertiary, fontSize: 14)),
             ),
           ...playlists.map((pl) => ListTile(
             leading: const Icon(CupertinoIcons.music_note_list, color: YYColors.accentPrimary),
-            title: Text(pl.name, style: TextStyle(color: pri)),
-            subtitle: Text('${pl.songIds.length} 首歌曲', style: TextStyle(color: tri, fontSize: 12)),
+            title: Text(pl.name, style: TextStyle(color: ctx.yyTextPrimary)),
+            subtitle: Text('${pl.songIds.length} 首歌曲', style: TextStyle(color: ctx.yyTextTertiary, fontSize: 12)),
             onTap: () {
               ref.read(playlistsProvider.notifier).addSongToPlaylist(pl.id, song.id);
               Navigator.pop(ctx);
@@ -216,15 +199,10 @@ void _showPlaylistPicker(BuildContext context, WidgetRef ref, MusicItem song) {
 }
 
 void _showSongDetails(BuildContext context, MusicItem song) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final sheetBg = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-  final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-  final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-
   showModalBottomSheet(
     context: context,
     useRootNavigator: true,
-    backgroundColor: sheetBg,
+    backgroundColor: context.yyBgElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -235,7 +213,7 @@ void _showSongDetails(BuildContext context, MusicItem song) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(song.title, style: TextStyle(color: pri, fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(song.title, style: TextStyle(color: ctx.yyTextPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             _DetailRow('艺术家', song.artist),
             _DetailRow('专辑', song.album),
@@ -250,7 +228,7 @@ void _showSongDetails(BuildContext context, MusicItem song) {
             if (song.filePath != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(song.filePath!, style: TextStyle(color: tri, fontSize: 11),
+                child: Text(song.filePath!, style: TextStyle(color: ctx.yyTextTertiary, fontSize: 11),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
             const SizedBox(height: 12),
@@ -268,16 +246,12 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final tri = isDark ? YYColors.textTertiary : YYLightColors.textTertiary;
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(width: 80, child: Text(label, style: TextStyle(color: tri, fontSize: 14))),
-          Expanded(child: Text(value, style: TextStyle(color: pri, fontSize: 14))),
+          SizedBox(width: 80, child: Text(label, style: TextStyle(color: context.yyTextTertiary, fontSize: 14))),
+          Expanded(child: Text(value, style: TextStyle(color: context.yyTextPrimary, fontSize: 14))),
         ],
       ),
     );
@@ -286,15 +260,10 @@ class _DetailRow extends StatelessWidget {
 
 /// 元数据刮削
 void _scrapeMetadata(BuildContext context, WidgetRef ref, MusicItem song) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final sheetBg = isDark ? YYColors.bgElevated : YYLightColors.bgElevated;
-  final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-  final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-
   showModalBottomSheet(
     context: context,
     useRootNavigator: true,
-    backgroundColor: sheetBg,
+    backgroundColor: context.yyBgElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -326,7 +295,6 @@ class _ScrapeProgressState extends ConsumerState<_ScrapeProgress> {
       final scraper = ref.read(metadataScraperProvider);
       final enriched = await scraper.scrape(widget.song);
       if (enriched != null && mounted) {
-        // 持久化
         await ref.read(musicDatabaseProvider).updateSong(enriched);
         setState(() {
           _status = '刮削成功！已更新元数据';
@@ -351,10 +319,6 @@ class _ScrapeProgressState extends ConsumerState<_ScrapeProgress> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pri = isDark ? YYColors.textPrimary : YYLightColors.textPrimary;
-    final sub = isDark ? YYColors.textSecondary : YYLightColors.textSecondary;
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -367,18 +331,18 @@ class _ScrapeProgressState extends ConsumerState<_ScrapeProgress> {
               Icon(
                 _result != null ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.xmark_circle,
                 size: 48,
-                color: _result != null ? YYColors.accentPrimary : YYColors.textTertiary,
+                color: _result != null ? YYColors.accentPrimary : context.yyTextTertiary,
               ),
             const SizedBox(height: 16),
-            Text(_status, style: TextStyle(color: pri, fontSize: 16)),
+            Text(_status, style: TextStyle(color: context.yyTextPrimary, fontSize: 16)),
             if (_result != null) ...[
               const SizedBox(height: 12),
               if (_result!.year != null)
-                Text('年份: ${_result!.year}', style: TextStyle(color: sub, fontSize: 14)),
+                Text('年份: ${_result!.year}', style: TextStyle(color: context.yyTextSecondary, fontSize: 14)),
               if (_result!.genre != null)
-                Text('流派: ${_result!.genre}', style: TextStyle(color: sub, fontSize: 14)),
+                Text('流派: ${_result!.genre}', style: TextStyle(color: context.yyTextSecondary, fontSize: 14)),
               if (_result!.album != widget.song.album)
-                Text('专辑: ${_result!.album}', style: TextStyle(color: sub, fontSize: 14)),
+                Text('专辑: ${_result!.album}', style: TextStyle(color: context.yyTextSecondary, fontSize: 14)),
             ],
             const SizedBox(height: 20),
             if (_done)
