@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/services/music_audio_handler.dart';
 import '../../data/services/media_kit_audio_handler.dart';
 import '../../data/services/audio_handler_interface.dart';
+import '../../data/services/live_activity_service.dart';
 import '../../domain/entities/music_item.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../favorites/data/services/favorites_service.dart';
@@ -79,6 +81,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   final List<StreamSubscription> _subscriptions = [];
   String _currentEngine = 'justAudio';
+  final LiveActivityService _liveActivity = LiveActivityService();
+  int _liveActivityUpdateCounter = 0;
 
   PlayerNotifier(this._audioHandler, this._ref) : super(const PlayerState()) {
     if (_audioHandler != null) {
@@ -89,6 +93,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (_audioHandler is MusicAudioHandler) {
         (_audioHandler as MusicAudioHandler).setCrossfadeDuration(settings.crossfadeDuration);
       }
+    }
+    // 初始化 Live Activity
+    _liveActivity.init();
+    _liveActivity.onControlAction = _handleLiveActivityControl;
+  }
+
+  /// 处理来自灵动岛的控制命令
+  void _handleLiveActivityControl(String action) {
+    switch (action) {
+      case 'toggle':
+        togglePlay();
+        break;
+      case 'previous':
+        previous();
+        break;
+      case 'next':
+        next();
+        break;
+      case 'favorite':
+        toggleFavorite();
+        break;
     }
   }
 
@@ -156,7 +181,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final handler = _audioHandler!;
 
     _subscriptions.add(handler.positionStream.listen((pos) {
-      if (mounted) state = state.copyWith(position: pos);
+      if (mounted) {
+        state = state.copyWith(position: pos);
+        // 每 3 秒更新一次 Live Activity（避免过于频繁）
+        _liveActivityUpdateCounter++;
+        if (_liveActivityUpdateCounter % 3 == 0 && state.currentSong != null) {
+          _updateLiveActivity();
+        }
+      }
     }));
 
     _subscriptions.add(handler.durationStream.listen((dur) {
@@ -164,7 +196,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }));
 
     _subscriptions.add(handler.playingStream.listen((playing) {
-      if (mounted) state = state.copyWith(isPlaying: playing);
+      if (mounted) {
+        state = state.copyWith(isPlaying: playing);
+        if (state.currentSong != null) _updateLiveActivity();
+      }
     }));
 
     _subscriptions.add(handler.bufferingStream.listen((buffering) {
@@ -241,6 +276,44 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     } else {
       state = state.copyWith(isPlaying: true);
     }
+
+    // 启动 Live Activity（灵动岛 + 锁屏）
+    _startLiveActivity(song);
+  }
+
+  /// 启动/更新 Live Activity
+  Future<void> _startLiveActivity(MusicItem song) async {
+    // 尝试读取封面数据
+    Uint8List? coverData;
+    if (song.coverUrl != null && song.coverUrl!.startsWith('/')) {
+      try {
+        final file = File(song.coverUrl!);
+        if (await file.exists()) {
+          coverData = await file.readAsBytes();
+        }
+      } catch (_) {}
+    }
+
+    await _liveActivity.startMusicActivity(
+      music: song,
+      isPlaying: state.isPlaying,
+      position: state.position,
+      duration: state.duration,
+      coverData: coverData,
+    );
+  }
+
+  /// 更新 Live Activity 状态
+  Future<void> _updateLiveActivity() async {
+    final song = state.currentSong;
+    if (song == null) return;
+
+    await _liveActivity.updateActivity(
+      music: song,
+      isPlaying: state.isPlaying,
+      position: state.position,
+      duration: state.duration,
+    );
   }
 
   void togglePlay() {
@@ -360,6 +433,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   @override
   void dispose() {
     for (final sub in _subscriptions) { sub.cancel(); }
+    _liveActivity.dispose();
     super.dispose();
   }
 }

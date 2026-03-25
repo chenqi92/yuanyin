@@ -37,6 +37,7 @@ dependencies:
 
   # Network
   dio: ^5.8.0+1
+  bonsoir: ^5.1.4
 
   # Local Storage
   path_provider: ^2.1.5
@@ -48,6 +49,9 @@ dependencies:
   logger: ^2.5.0
   image: ^4.3.0
   path: ^1.9.1
+  crypto: ^3.0.7
+  encrypt: ^5.0.3
+  uuid: ^4.5.3
 
 dev_dependencies:
   flutter_test:

@@ -12,6 +12,13 @@ import 'shared/services/native_tab_bar_service.dart';
 import 'shared/widgets/macos_menu_bar.dart';
 
 import 'dart:async';
+import 'dart:io';
+
+/// 启动时主动触发网络权限（iOS 本地网络访问弹框）
+void _triggerNetworkPermission() {
+  // 发起一次 DNS 解析即可触发 iOS 本地网络权限弹框
+  InternetAddress.lookup('example.com').catchError((_) => <InternetAddress>[]);
+}
 
 void main() async {
   runZonedGuarded(() async {
@@ -55,10 +62,13 @@ void main() async {
               ),
             ),
           ),
-        ),
+         ),
       ));
       return;
     }
+
+    // 主动触发网络权限 — iOS 首次需要弹出本地网络访问权限弹框
+    _triggerNetworkPermission();
 
     runApp(
       ProviderScope(

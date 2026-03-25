@@ -34,9 +34,13 @@ class NativeTabBarService {
   bool _initialized = false;
 
   final _tabSelectedController = StreamController<int>.broadcast();
+  final _searchQueryController = StreamController<String>.broadcast();
   final ValueNotifier<NativeTabBarMetrics> _metrics = ValueNotifier(
     const NativeTabBarMetrics(tabBarHeight: 49, safeAreaBottom: 34),
   );
+
+  /// 原生 UISearchController 的搜索查询流
+  Stream<String> get onSearchQuery => _searchQueryController.stream;
 
   bool get _isIOS => !kIsWeb && Platform.isIOS;
 
@@ -111,10 +115,18 @@ class NativeTabBarService {
   }
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
+    debugPrint('[NativeTabBarService] Received: ${call.method}, args: ${call.arguments}');
     switch (call.method) {
       case 'onTabSelected':
         final index = call.arguments as int;
+        debugPrint('[NativeTabBarService] Tab selected: $index');
         _tabSelectedController.add(index);
+        return null;
+      case 'onSearchQuery':
+        // 原生 UISearchController 转发的搜索查询
+        final query = call.arguments as String? ?? '';
+        debugPrint('[NativeTabBarService] Search query: $query');
+        _searchQueryController.add(query);
         return null;
       case 'onMetricsChanged':
         final args = Map<dynamic, dynamic>.from(
@@ -126,10 +138,8 @@ class NativeTabBarService {
         );
         return null;
       default:
-        throw PlatformException(
-          code: 'unimplemented',
-          message: 'Method ${call.method} is not implemented.',
-        );
+        debugPrint('[NativeTabBarService] Unknown method: ${call.method}');
+        return null;
     }
   }
 }

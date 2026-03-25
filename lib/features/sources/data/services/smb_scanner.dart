@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:logger/logger.dart';
 import '../../../player/domain/entities/music_item.dart';
 
@@ -45,7 +48,16 @@ const _audioExts = {
 class SmbScanner {
   final Dio _dio;
 
-  SmbScanner() : _dio = Dio();
+  SmbScanner() : _dio = Dio() {
+    // 跳过 SSL 证书验证（群晖 NAS 通常使用自签名证书）
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient()
+          ..badCertificateCallback = (cert, host, port) => true;
+        return client;
+      },
+    );
+  }
 
   /// 通过群晖 FileStation API 扫描
   ///
@@ -84,7 +96,8 @@ class SmbScanner {
   }) async {
     try {
       final protocol = useSsl ? 'https' : 'http';
-      final url = '$protocol://$host:$port/webapi/auth.cgi';
+      // 使用 entry.cgi（与 my-nas 一致，兼容新版 DSM）
+      final url = '$protocol://$host:$port/webapi/entry.cgi';
       final params = <String, String>{
         'api': 'SYNO.API.Auth',
         'version': '6',
@@ -93,16 +106,17 @@ class SmbScanner {
         'passwd': password,
         'session': 'FileStation',
         'format': 'sid',
+        // 始终启用设备令牌（记住设备，跳过后续 OTP）
+        'enable_device_token': 'yes',
+        'device_name': 'Primuse Music Player',
       };
 
-      // OTP 支持
+      // OTP 二级验证码
       if (otpCode != null && otpCode.isNotEmpty) {
         params['otp_code'] = otpCode;
-        params['enable_device_token'] = 'yes';
-        params['device_name'] = 'Primuse Music Player';
       }
 
-      // 如有已保存的 device_id，可跳过 OTP
+      // 如有已保存的 device_id，跳过 OTP
       if (deviceId != null && deviceId.isNotEmpty) {
         params['device_id'] = deviceId;
       }
@@ -111,12 +125,14 @@ class SmbScanner {
 
       if (response.data is Map && response.data['success'] == true) {
         final sid = response.data['data']['sid'] as String?;
-        final did = response.data['data']['device_id'] as String?;
+        // 群晖 API 返回 "did"（不是 "device_id"）
+        final did = response.data['data']['did'] as String?;
         return SynologyLoginResult.success(sid, deviceId: did);
       }
 
       // 检查错误码
-      final errorCode = response.data?['error']?['code'];
+      final error = response.data?['error'];
+      final errorCode = error is Map ? error['code'] : null;
       if (errorCode == 403) {
         return const SynologyLoginResult.otpRequired();
       }
@@ -142,6 +158,7 @@ class SmbScanner {
       case 404: return '二级验证码错误';
       case 406: return 'OTP 强制且未启用';
       case 407: return '二级验证码有误，请重试';
+      case null: return '登录失败（服务器返回未知错误）';
       default: return '登录失败 (错误码: $code)';
     }
   }
@@ -243,9 +260,13 @@ class SmbScanner {
   String _friendlyError(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout) return '连接超时，请检查地址和端口';
     if (e.type == DioExceptionType.connectionError) return '无法连接，请检查网络和地址';
+    if (e.type == DioExceptionType.unknown && e.error.toString().contains('HandshakeException')) {
+      return 'SSL 证书验证失败，请检查 SSL 设置或尝试关闭 SSL';
+    }
     if (e.response?.statusCode == 403) return '访问被拒绝';
     if (e.response?.statusCode == 401) return '认证失败';
-    return '连接失败: ${e.message}';
+    final msg = e.message;
+    return msg != null && msg.isNotEmpty ? '连接失败: $msg' : '连接失败，请检查地址和端口';
   }
 
   Future<void> _scanSynologyDir(

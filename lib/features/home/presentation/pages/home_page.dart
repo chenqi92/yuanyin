@@ -10,6 +10,7 @@ import '../../../../app/l10n/strings.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
+import '../../../favorites/data/services/favorites_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 import '../../../library/data/services/music_database_service.dart';
 import '../../../player/domain/entities/music_item.dart';
@@ -40,13 +41,6 @@ class HomePage extends ConsumerWidget {
                   Text(S.of(context).appName, style: TextStyle(
                     color: context.yyTextPrimary, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                 ])),
-                if (library.allSongs.isNotEmpty) Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: YYColors.accentPrimary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(10)),
-                  child: Text('${library.stats.songCount} 首', style: TextStyle(
-                    color: YYColors.accentPrimary, fontSize: 13, fontWeight: FontWeight.w700))),
               ]),
             )),
 
@@ -104,6 +98,9 @@ class HomePage extends ConsumerWidget {
               )),
             ],
 
+            // ── 收藏歌曲 ──
+            SliverToBoxAdapter(child: _FavoritesSection()),
+
             // ── 为你推荐（随机 5 首）──
             if (library.allSongs.length >= 5) ...[
               SliverToBoxAdapter(child: Padding(
@@ -116,6 +113,31 @@ class HomePage extends ConsumerWidget {
                 child: _PopularList(songs: library.allSongs),
               )),
             ],
+
+            // ── 专辑精选 ──
+            if (library.albums.isNotEmpty) ...[
+              SliverToBoxAdapter(child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 20, 0, 14),
+                child: _SectionHeader('专辑精选', color: const Color(0xFFF97316),
+                    onMore: () => context.push('/library?tab=albums')),
+              )),
+              SliverToBoxAdapter(child: SizedBox(
+                height: 170,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: library.albums.take(8).length,
+                  itemBuilder: (_, i) {
+                    final album = library.albums[i];
+                    return _AlbumCard(album: album)
+                        .animate().fadeIn(delay: (50 * i).ms);
+                  },
+                ),
+              )),
+            ],
+
+
+
 
             // ── 浏览分类（横向胶囊）──
             if (library.allSongs.isNotEmpty) ...[
@@ -208,19 +230,30 @@ class _StatsBar extends StatelessWidget {
   const _StatsBar({required this.stats});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05))),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-        _StatItem(CupertinoIcons.music_note, stats.songCount, '歌曲', YYColors.accentPrimary),
-        Container(width: 1, height: 50, color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
-        _StatItem(CupertinoIcons.person_2_fill, stats.artistCount, '艺术家', const Color(0xFF9C27B0)),
-        Container(width: 1, height: 50, color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
-        _StatItem(CupertinoIcons.square_stack_3d_up_fill, stats.albumCount, '专辑', const Color(0xFFFF9800)),
-      ]),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+          decoration: BoxDecoration(
+            color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.8)),
+            boxShadow: [if (!context.isDark) BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 4))]),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _StatItem(CupertinoIcons.music_note, stats.songCount, '歌曲', YYColors.accentPrimary),
+            Container(width: 1, height: 50, decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [Colors.transparent, context.yyTextTertiary.withValues(alpha: 0.2), Colors.transparent]))),
+            _StatItem(CupertinoIcons.person_2_fill, stats.artistCount, '艺术家', const Color(0xFF8B5CF6)),
+            Container(width: 1, height: 50, decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [Colors.transparent, context.yyTextTertiary.withValues(alpha: 0.2), Colors.transparent]))),
+            _StatItem(CupertinoIcons.square_stack_3d_up_fill, stats.albumCount, '专辑', const Color(0xFFF97316)),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -235,13 +268,17 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(children: [
       Container(width: 44, height: 44,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-        child: Icon(icon, color: color, size: 22)),
-      const SizedBox(height: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [color, color.withValues(alpha: 0.7)]),
+          borderRadius: BorderRadius.circular(13),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+        child: Icon(icon, color: Colors.white, size: 22)),
+      const SizedBox(height: 10),
       Text(_fmt(value), style: TextStyle(
-        fontSize: 20, fontWeight: FontWeight.w800, color: context.yyTextPrimary)),
+        fontSize: 22, fontWeight: FontWeight.w800, color: context.yyTextPrimary)),
       const SizedBox(height: 2),
-      Text(label, style: TextStyle(fontSize: 12, color: context.yyTextTertiary)),
+      Text(label, style: TextStyle(fontSize: 12, color: context.yyTextTertiary, fontWeight: FontWeight.w500)),
     ]);
   }
   String _fmt(int n) {
@@ -526,14 +563,18 @@ class _PopularList extends StatelessWidget {
     final sorted = List<MusicItem>.from(songs)..sort((a, b) => a.title.hashCode.compareTo(b.title.hashCode));
     final picks = sorted.take(5).toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: context.isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: context.isDark ? null : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))]),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(children: List.generate(picks.length, (i) => _RankItem(song: picks[i], rank: i + 1, isLast: i == picks.length - 1))),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.75),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.8)),
+            boxShadow: [if (!context.isDark) BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 4))]),
+          child: Column(children: List.generate(picks.length, (i) => _RankItem(song: picks[i], rank: i + 1, isLast: i == picks.length - 1))),
+        ),
       ),
     );
   }
@@ -709,5 +750,154 @@ class _EmptyState extends StatelessWidget {
           decoration: BoxDecoration(color: YYColors.accentPrimary, borderRadius: BorderRadius.circular(12)),
           child: const Text('添加数据源', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)))),
     ]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  收藏歌曲横滑区
+// ═══════════════════════════════════════════════════════════
+
+class _FavoritesSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<MusicItem>>(
+      future: _loadFavorites(ref),
+      builder: (context, snapshot) {
+        final favorites = snapshot.data ?? [];
+        if (favorites.isEmpty) return const SizedBox.shrink();
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 20, 0, 14),
+            child: _SectionHeader('我的收藏', color: const Color(0xFFE91E63),
+              onMore: () => context.push('/favorites')),
+          ),
+          SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: favorites.take(8).length,
+              itemBuilder: (_, i) {
+                final song = favorites[i];
+                return _RecentCard(song: song, queue: favorites);
+              },
+            ),
+          ),
+        ]);
+      },
+    );
+  }
+
+  Future<List<MusicItem>> _loadFavorites(WidgetRef ref) async {
+    final favService = ref.read(favoritesServiceProvider);
+    final favIds = await favService.getAllFavoriteIds();
+    if (favIds.isEmpty) return [];
+    final library = ref.read(libraryProvider);
+    final songMap = <String, MusicItem>{};
+    for (final s in library.allSongs) songMap[s.id] = s;
+    return favIds.where((id) => songMap.containsKey(id)).map((id) => songMap[id]!).toList();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  专辑精选卡片
+// ═══════════════════════════════════════════════════════════
+
+class _AlbumCard extends ConsumerWidget {
+  final AlbumInfo album;
+  const _AlbumCard({required this.album});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final color = HSLColor.fromAHSL(1.0, (album.name.hashCode % 360).toDouble(), 0.5, 0.45).toColor();
+    return GestureDetector(
+      onTap: () {
+        final db = ref.read(musicDatabaseProvider);
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => _AlbumSongsLoader(album: album, db: db)));
+      },
+      child: Container(
+        width: 130, margin: const EdgeInsets.only(right: 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 130, height: 130,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [color, color.withValues(alpha: 0.7)]),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: context.isDark ? 0.35 : 0.2), blurRadius: 12, offset: const Offset(0, 5))]),
+            child: Stack(children: [
+              Positioned(right: -10, bottom: -10,
+                child: Icon(CupertinoIcons.square_stack_3d_up_fill, size: 60, color: Colors.white.withValues(alpha: 0.15))),
+              Padding(padding: const EdgeInsets.all(14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Text(album.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+                    child: Text('${album.songCount} 首', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500))),
+                ])),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Text(album.artist, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.yyTextTertiary, fontSize: 11)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 专辑歌曲加载器（轻量过渡页）
+class _AlbumSongsLoader extends StatelessWidget {
+  final AlbumInfo album;
+  final MusicDatabaseService db;
+  const _AlbumSongsLoader({required this.album, required this.db});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<MusicItem>>(
+      future: db.getSongsByAlbum(album.name, album.artist),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Scaffold(backgroundColor: context.yyBgBase,
+            body: const Center(child: CircularProgressIndicator(color: YYColors.accentPrimary)));
+        }
+        // 直接导入 SongListPage
+        return _buildSongListPage(snapshot.data!);
+      },
+    );
+  }
+
+  Widget _buildSongListPage(List<MusicItem> songs) {
+    // 简单使用 MaterialPageRoute 已经包含了 SongListPage, 这里用内联方式
+    return Consumer(builder: (context, ref, _) {
+      return Scaffold(
+        backgroundColor: context.yyBgBase,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent, elevation: 0,
+          leading: IconButton(icon: Icon(CupertinoIcons.back, color: context.yyTextPrimary),
+            onPressed: () => Navigator.pop(context)),
+          title: Text(album.name, style: TextStyle(color: context.yyTextPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
+        ),
+        body: ListView.builder(
+          itemCount: songs.length,
+          itemBuilder: (context, i) {
+            final song = songs[i];
+            return ListTile(
+              leading: ClipRRect(borderRadius: BorderRadius.circular(8),
+                child: SizedBox(width: 44, height: 44,
+                  child: GradientCover(seed: '${song.title}_${song.artist}', coverUrl: song.coverUrl, size: 44))),
+              title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: context.yyTextPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: Text(song.artist, style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
+              onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: songs),
+            );
+          },
+        ),
+      );
+    });
   }
 }

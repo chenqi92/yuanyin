@@ -39,6 +39,7 @@ class SourceEntity {
   final String name;
   final SourceType type;
   final String path;
+  final List<String> scanPaths; // 用户选择的扫描目录列表
   final String? host;
   final int? port;
   final String? username;
@@ -56,6 +57,7 @@ class SourceEntity {
     required this.name,
     required this.type,
     required this.path,
+    this.scanPaths = const [],
     this.host,
     this.port,
     this.username,
@@ -72,6 +74,7 @@ class SourceEntity {
   SourceEntity copyWith({
     String? name,
     String? path,
+    List<String>? scanPaths,
     String? host,
     int? port,
     String? username,
@@ -89,6 +92,7 @@ class SourceEntity {
       name: name ?? this.name,
       type: type,
       path: path ?? this.path,
+      scanPaths: scanPaths ?? this.scanPaths,
       host: host ?? this.host,
       port: port ?? this.port,
       username: username ?? this.username,
@@ -132,6 +136,7 @@ class SourceEntity {
       'name': name,
       'type': type.index,
       'path': path,
+      'scanPaths': scanPaths,
       'host': host,
       'port': port,
       'username': username,
@@ -151,6 +156,7 @@ class SourceEntity {
       name: map['name'] as String,
       type: SourceType.values[map['type'] as int],
       path: map['path'] as String,
+      scanPaths: (map['scanPaths'] as List?)?.cast<String>() ?? const [],
       host: map['host'] as String?,
       port: map['port'] as int?,
       username: map['username'] as String?,

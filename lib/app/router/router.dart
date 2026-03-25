@@ -10,10 +10,11 @@ import '../../features/player/presentation/pages/equalizer_page.dart';
 import '../../features/sources/presentation/pages/sources_page.dart';
 import '../../features/favorites/presentation/pages/favorites_page.dart';
 import '../../features/library/presentation/pages/play_stats_page.dart';
+import '../../features/library/presentation/pages/scraper_sources_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-/// Primuse 路由配置 — 4 Tab + 全屏播放页 + 子页面
+/// Primuse 路由配置 — 3 Tab + 全屏播放页 + 子页面
 final goRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
@@ -44,11 +45,31 @@ final goRouter = GoRouter(
         },
       ),
     ),
+    // 搜索页 — 顶层路由（覆盖 TabBar），无过渡动画
+    GoRoute(
+      parentNavigatorKey: _rootNavigatorKey,
+      path: '/search',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const SearchPage(),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
     // 源管理页
     GoRoute(
       parentNavigatorKey: _rootNavigatorKey,
       path: '/sources',
       builder: (context, state) => const SourcesPage(),
+    ),
+    // 刮削源管理页
+    GoRoute(
+      parentNavigatorKey: _rootNavigatorKey,
+      path: '/scraper-sources',
+      builder: (context, state) => const ScraperSourcesPage(),
     ),
     // 收藏页
     GoRoute(
@@ -68,7 +89,7 @@ final goRouter = GoRouter(
       path: '/stats',
       builder: (context, state) => const PlayStatsPage(),
     ),
-    // 底部 Tab 路由
+    // 底部 Tab 路由 — 3 Tab: 首页 / 音乐库 / 设置
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return AppShell(navigationShell: navigationShell);
@@ -92,16 +113,7 @@ final goRouter = GoRouter(
             ),
           ],
         ),
-        // Tab 2: 搜索
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/search',
-              builder: (context, state) => const SearchPage(),
-            ),
-          ],
-        ),
-        // Tab 3: 设置
+        // Tab 2: 设置
         StatefulShellBranch(
           routes: [
             GoRoute(

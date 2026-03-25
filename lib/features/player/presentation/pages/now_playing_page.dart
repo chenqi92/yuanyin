@@ -12,6 +12,8 @@ import '../../../../shared/widgets/modern_music_ui.dart';
 import '../providers/player_provider.dart';
 import '../widgets/queue_panel.dart';
 import '../../../lyric/presentation/pages/lyrics_page.dart';
+import '../../../library/presentation/widgets/auto_scrape_dialog.dart';
+import '../../../library/presentation/pages/manual_music_scraper_page.dart';
 
 class NowPlayingPage extends ConsumerStatefulWidget {
   const NowPlayingPage({super.key});
@@ -192,6 +194,26 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                       label: '队列',
                                       icon: CupertinoIcons.list_bullet,
                                       onTap: () => showQueuePanel(context),
+                                    ),
+                                    YYPillButton(
+                                      label: '自动刮削',
+                                      icon: CupertinoIcons.wand_and_stars,
+                                      onTap: () => showAutoScrapeDialog(
+                                        context,
+                                        song,
+                                      ),
+                                    ),
+                                    YYPillButton(
+                                      label: '手动刮削',
+                                      icon: CupertinoIcons.search,
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ManualMusicScraperPage(
+                                            musicItem: song,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),

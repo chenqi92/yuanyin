@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/theme.dart';
 import '../providers/library_provider.dart';
@@ -28,26 +31,21 @@ class LibraryPage extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Row(
                 children: [
+                  Container(width: 48, height: 48,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)]),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [BoxShadow(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))]),
+                    child: const Icon(CupertinoIcons.square_stack_3d_down_right_fill, color: Colors.white, size: 24)),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: Text(
-                      '音乐库',
-                      style: TextStyle(
-                        color: context.yyTextPrimary,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('音乐库', style: TextStyle(color: context.yyTextPrimary, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                      if (library.stats.songCount > 0)
+                        Text('${library.stats.songCount} 首歌曲 · ${library.stats.artistCount} 位艺术家',
+                          style: TextStyle(color: context.yyTextTertiary, fontSize: 13)),
+                    ]),
                   ),
-                  if (library.stats.songCount > 0)
-                    Text(
-                      '${library.stats.songCount} 首',
-                      style: TextStyle(
-                        color: context.yyTextTertiary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -159,86 +157,79 @@ class LibraryPage extends ConsumerWidget {
             if (playlists.playlists.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: context.yyBgSurface.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        CupertinoIcons.music_note_list,
-                        size: 32,
-                        color: context.yyTextTertiary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '还没有歌单',
-                        style: TextStyle(
-                          color: context.yyTextSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.8))),
+                      child: Column(children: [
+                        Container(width: 48, height: 48,
+                          decoration: BoxDecoration(
+                            color: context.yyTextTertiary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14)),
+                          child: Icon(CupertinoIcons.music_note_list, size: 24, color: context.yyTextTertiary.withValues(alpha: 0.5))),
+                        const SizedBox(height: 12),
+                        Text('还没有歌单', style: TextStyle(color: context.yyTextSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
+                      ]),
+                    ),
                   ),
                 ),
               ),
 
             ...playlists.playlists.map((playlist) {
-              final palette = YYColors
-                  .categoryGradients[playlist.colorIndex % YYColors.categoryGradients.length];
+              final palette = YYColors.categoryGradients[playlist.colorIndex % YYColors.categoryGradients.length];
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PlaylistDetailPage(playlistId: playlist.id),
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: palette.first.withValues(alpha: context.isDark ? 0.08 : 0.05),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: palette.first.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(CupertinoIcons.music_note_list, color: palette.first, size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                playlist.name,
-                                style: TextStyle(
-                                  color: context.yyTextPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                '${playlist.songIds.length} 首',
-                                style: TextStyle(
-                                  color: context.yyTextTertiary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
-                      ],
+                  onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => PlaylistDetailPage(playlistId: playlist.id))),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.8))),
+                        child: Row(children: [
+                          // 渐变侧条
+                          Container(width: 4, height: 40,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: palette),
+                              borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(width: 12),
+                          // 图标
+                          Container(width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: palette),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [BoxShadow(color: palette.first.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]),
+                            child: const Icon(CupertinoIcons.music_note_list, color: Colors.white, size: 18)),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(playlist.name, style: TextStyle(color: context.yyTextPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text('${playlist.songIds.length} 首',
+                              style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
+                          ])),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: palette.first.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8)),
+                            child: Text('${playlist.songIds.length}', style: TextStyle(
+                              color: palette.first, fontSize: 12, fontWeight: FontWeight.w700))),
+                          const SizedBox(width: 8),
+                          Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
+                        ]),
+                      ),
                     ),
                   ),
                 ),
@@ -451,7 +442,7 @@ class LibraryPage extends ConsumerWidget {
   }
 }
 
-/// 分类卡片 — 精简版
+/// 分类卡片 — Liquid Glass 版
 class _CategoryCard extends StatelessWidget {
   final String title;
   final int count;
@@ -471,49 +462,47 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: context.isDark ? 0.08 : 0.05),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.8)),
+              boxShadow: [if (!context.isDark) BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4))]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 18),
-                ),
-                const Spacer(),
-                Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
+                Row(children: [
+                  Container(width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        colors: [color, color.withValues(alpha: 0.7)]),
+                      borderRadius: BorderRadius.circular(11),
+                      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    child: Icon(icon, color: Colors.white, size: 18)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8)),
+                    child: Text('$count', style: TextStyle(
+                      color: color, fontSize: 12, fontWeight: FontWeight.w700))),
+                ]),
+                const SizedBox(height: 14),
+                Text(title, style: TextStyle(color: context.yyTextPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Row(children: [
+                  Expanded(child: Text('查看全部', style: TextStyle(color: context.yyTextTertiary, fontSize: 12))),
+                  Icon(CupertinoIcons.chevron_right, size: 12, color: context.yyTextTertiary),
+                ]),
               ],
             ),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              style: TextStyle(
-                color: context.yyTextPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$count',
-              style: TextStyle(
-                color: context.yyTextSecondary,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

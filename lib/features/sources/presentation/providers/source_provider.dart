@@ -102,7 +102,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
   }
 
   /// 添加群晖数据源
-  Future<void> addSynologySource({
+  Future<String> addSynologySource({
     required String name,
     required String host,
     int port = 5001,
@@ -112,6 +112,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
     bool useSsl = true,
     String? deviceToken,
     String? otpCode,
+    List<String> scanPaths = const [],
   }) async {
     final source = SourceEntity(
       id: DateTime.now().millisecondsSinceEpoch.toRadixString(36),
@@ -124,11 +125,12 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
       password: password,
       useSsl: useSsl,
       deviceToken: deviceToken,
-      status: SourceStatus.connecting,
+      status: SourceStatus.disconnected,
+      scanPaths: scanPaths,
     );
     await _repository.add(source);
     state = state.copyWith(sources: [...state.sources, source]);
-    await scanSource(source.id, otpCode: otpCode);
+    return source.id;
   }
 
   /// 添加 SMB 数据源
@@ -266,7 +268,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
 
   // ---- 扫描 ----
 
-  /// 扫描指定数据源
+  /// 扫描指定数据源（支持多文件夹）
   Future<void> scanSource(String sourceId, {String? otpCode}) async {
     final sourceIndex = state.sources.indexWhere((s) => s.id == sourceId);
     if (sourceIndex == -1) return;
@@ -276,64 +278,67 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
     _updateSourceInList(sourceIndex, source.copyWith(status: SourceStatus.connecting));
 
     try {
-      List<MusicItem> songs;
+      List<MusicItem> allSongs = [];
 
       switch (source.type) {
         case SourceType.local:
-          songs = await _localScanner.scan(source.path, onProgress: _onProgress);
+          final paths = source.scanPaths.isNotEmpty ? source.scanPaths : [source.path];
+          for (final p in paths) {
+            final songs = await _localScanner.scan(p, onProgress: _onProgress);
+            allSongs.addAll(songs);
+          }
           break;
         case SourceType.webdav:
-          songs = await _webdavScanner.scan(
-            source.path,
-            username: source.username,
-            password: source.password,
-            onProgress: _onProgress,
-          );
+          final paths = source.scanPaths.isNotEmpty ? source.scanPaths : [source.path];
+          for (final p in paths) {
+            final songs = await _webdavScanner.scan(
+              p, username: source.username, password: source.password, onProgress: _onProgress,
+            );
+            allSongs.addAll(songs);
+          }
           break;
         case SourceType.synology:
           final loginResult = await _smbScanner.synologyLogin(
-            host: source.host!,
-            port: source.port ?? 5000,
-            username: source.username!,
-            password: source.password!,
-            useSsl: source.useSsl,
-            otpCode: otpCode,
-            deviceId: source.deviceToken,
+            host: source.host!, port: source.port ?? 5000,
+            username: source.username!, password: source.password!,
+            useSsl: source.useSsl, otpCode: otpCode, deviceId: source.deviceToken,
           );
           if (loginResult.status != SynologyLoginStatus.success || loginResult.sid == null) {
             throw Exception(loginResult.errorMessage ?? '群晖登录失败');
           }
-          // 保存返回的 device_id
           if (loginResult.deviceId != null && loginResult.deviceId != source.deviceToken) {
             final withToken = source.copyWith(deviceToken: loginResult.deviceId);
             await _repository.update(withToken);
             _updateSourceInList(sourceIndex, withToken);
           }
-          songs = await _smbScanner.scanSynology(
-            host: source.host!,
-            port: source.port ?? 5000,
-            sid: loginResult.sid!,
-            folderPath: source.path,
-            onProgress: _onProgress,
-          );
+          // 多文件夹扫描
+          final folderPaths = source.scanPaths.isNotEmpty
+              ? source.scanPaths
+              : [source.path.isNotEmpty ? source.path : '/'];
+          for (final fp in folderPaths) {
+            final songs = await _smbScanner.scanSynology(
+              host: source.host!, port: source.port ?? 5000,
+              sid: loginResult.sid!, folderPath: fp, onProgress: _onProgress,
+            );
+            allSongs.addAll(songs);
+          }
           break;
         case SourceType.smb:
-          // SMB 直连：尝试通过 HTTP 文件服务器代理扫描
-          // Flutter 无原生 SMB/CIFS 支持，需 NAS 端运行 HTTP 代理或使用 WebDAV
-          songs = await _webdavScanner.scan(
-            'http://${source.host}:${source.port ?? 445}${source.path}',
-            username: source.username,
-            password: source.password,
-            onProgress: _onProgress,
-          );
+          final paths = source.scanPaths.isNotEmpty ? source.scanPaths : [source.path];
+          for (final p in paths) {
+            final url = 'http://${source.host}:${source.port ?? 445}$p';
+            final songs = await _webdavScanner.scan(
+              url, username: source.username, password: source.password, onProgress: _onProgress,
+            );
+            allSongs.addAll(songs);
+          }
           break;
         default:
-          // 暂不支持的类型
-          songs = [];
+          allSongs = [];
       }
 
       // 标记所属源
-      final taggedSongs = songs.map((s) => s.copyWith(sourceId: source.id)).toList();
+      final taggedSongs = allSongs.map((s) => s.copyWith(sourceId: source.id)).toList();
 
       // 写入数据库
       await _db.deleteSongsBySource(sourceId);
@@ -342,7 +347,7 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
       // 更新源信息
       final updatedSource = source.copyWith(
         status: SourceStatus.connected,
-        songCount: songs.length,
+        songCount: allSongs.length,
         lastScanTime: DateTime.now(),
       );
       await _repository.update(updatedSource);
@@ -351,7 +356,8 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
       // 刷新音乐库
       _ref.read(libraryProvider.notifier).refresh();
     } catch (e) {
-      _updateSourceInList(sourceIndex, source.copyWith(status: SourceStatus.error));
+      _updateSourceInList(sourceIndex, source.copyWith(
+        status: SourceStatus.error, errorMessage: e.toString()));
     }
 
     state = state.copyWith(isScanning: false, scanningFile: null);
@@ -375,6 +381,40 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
     final sources = [...state.sources];
     sources[index] = updated;
     state = state.copyWith(sources: sources);
+  }
+
+  // ---- 文件夹管理 ----
+
+  /// 添加扫描路径
+  Future<void> addScanPath(String sourceId, String path) async {
+    final idx = state.sources.indexWhere((s) => s.id == sourceId);
+    if (idx == -1) return;
+    final source = state.sources[idx];
+    if (source.scanPaths.contains(path)) return;
+    final updated = source.copyWith(scanPaths: [...source.scanPaths, path]);
+    await _repository.update(updated);
+    _updateSourceInList(idx, updated);
+  }
+
+  /// 移除扫描路径
+  Future<void> removeScanPath(String sourceId, String path) async {
+    final idx = state.sources.indexWhere((s) => s.id == sourceId);
+    if (idx == -1) return;
+    final source = state.sources[idx];
+    final updated = source.copyWith(
+      scanPaths: source.scanPaths.where((p) => p != path).toList());
+    await _repository.update(updated);
+    _updateSourceInList(idx, updated);
+  }
+
+  /// 更新扫描路径列表（批量）
+  Future<void> updateScanPaths(String sourceId, List<String> paths) async {
+    final idx = state.sources.indexWhere((s) => s.id == sourceId);
+    if (idx == -1) return;
+    final source = state.sources[idx];
+    final updated = source.copyWith(scanPaths: paths);
+    await _repository.update(updated);
+    _updateSourceInList(idx, updated);
   }
 }
 

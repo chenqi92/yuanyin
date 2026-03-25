@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,11 +38,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       return;
     }
 
-    final needsIndexSync = _lastNativeIndex != currentIndex;
+    // iOS: native tab bar 管理自身选中状态，Flutter 只控制可见性
     final needsVisibilitySync = _lastNativeVisibility != visible;
-    if (!needsIndexSync && !needsVisibilitySync) {
-      return;
-    }
+    if (!needsVisibilitySync) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -49,14 +49,38 @@ class _AppShellState extends ConsumerState<AppShell> {
         NativeTabBarService.instance.setTabBarVisible(visible);
         _lastNativeVisibility = visible;
       }
-      if (needsIndexSync) {
-        NativeTabBarService.instance.setSelectedIndex(currentIndex);
-        _lastNativeIndex = currentIndex;
-      }
       if (visible) {
         NativeTabBarService.instance.refreshMetrics();
       }
     });
+  }
+
+  StreamSubscription<int>? _tabSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化原生 tab bar 服务（注册 method channel handler）
+    NativeTabBarService.instance.initialize();
+    // 监听原生 UITabBarController 的 tab 选择（仅 iOS）
+    _tabSub = NativeTabBarService.instance.onTabSelected.listen(_handleNativeTabSelected);
+  }
+
+  @override
+  void dispose() {
+    _tabSub?.cancel();
+    super.dispose();
+  }
+
+  void _handleNativeTabSelected(int index) {
+    // index 3 = 搜索 Tab → 由 native UISearchController 处理，Flutter 不做跳转
+    if (index == 3) return;
+
+    ShellNavigationVisibility.instance.reset();
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
   }
 
   @override
@@ -80,13 +104,13 @@ class _AppShellState extends ConsumerState<AppShell> {
 
           return Scaffold(
             backgroundColor: context.yyBgBase,
-            // 不使用 bottomNavigationBar —— 让 body 内容延伸到屏幕底部，
-            // 导航栏通过 Stack 浮在内容上方，实现 iOS 26 透明穿透效果。
             body: Stack(
               children: [
                 Positioned.fill(
                   child: YYScenicBackground(child: widget.navigationShell),
                 ),
+                // iOS: 仅显示 mini player（tab bar 由原生 UITabBarController 渲染）
+                // 非 iOS: 显示 mini player + Flutter Material NavigationBar
                 Positioned(
                   left: 0,
                   right: 0,
@@ -112,18 +136,26 @@ class _AppShellState extends ConsumerState<AppShell> {
                             key: const ValueKey('shell-navigation-visible'),
                             hasSong: hasSong,
                             isIOS: isIOS,
-                            child: _BottomNavigation(
-                              currentIndex:
-                                  widget.navigationShell.currentIndex,
-                              onTap: (index) {
-                                ShellNavigationVisibility.instance.reset();
-                                widget.navigationShell.goBranch(
-                                  index,
-                                  initialLocation: index ==
-                                      widget.navigationShell.currentIndex,
-                                );
-                              },
-                            ),
+                            child: isIOS
+                                // iOS: 不渲染 tab bar（原生 UITabBarController 管理）
+                                ? const SizedBox.shrink()
+                                // 非 iOS: 保留 Flutter Material NavigationBar
+                                : _BottomNavigation(
+                                    currentIndex:
+                                        widget.navigationShell.currentIndex,
+                                    onTap: (index) {
+                                      if (index == 3) {
+                                        context.push('/search');
+                                        return;
+                                      }
+                                      ShellNavigationVisibility.instance.reset();
+                                      widget.navigationShell.goBranch(
+                                        index,
+                                        initialLocation: index ==
+                                            widget.navigationShell.currentIndex,
+                                      );
+                                    },
+                                  ),
                           )
                         : const SizedBox.shrink(
                             key: ValueKey('shell-navigation-hidden'),
@@ -223,18 +255,18 @@ class _BottomNavigation extends StatelessWidget {
       selectedSFSymbol: 'square.stack.3d.down.right.fill',
     ),
     YYTabDestination(
-      icon: CupertinoIcons.search,
-      selectedIcon: CupertinoIcons.search,
-      label: '搜索',
-      sfSymbol: 'magnifyingglass',
-      selectedSFSymbol: 'magnifyingglass',
-    ),
-    YYTabDestination(
       icon: CupertinoIcons.slider_horizontal_3,
       selectedIcon: CupertinoIcons.slider_horizontal_3,
       label: '设置',
       sfSymbol: 'slider.horizontal.3',
       selectedSFSymbol: 'slider.horizontal.3',
+    ),
+    YYTabDestination(
+      icon: CupertinoIcons.search,
+      selectedIcon: CupertinoIcons.search,
+      label: '搜索',
+      sfSymbol: 'magnifyingglass',
+      selectedSFSymbol: 'magnifyingglass',
     ),
   ];
 

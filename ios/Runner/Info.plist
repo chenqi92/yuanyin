@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Yuanyin</string>
+	<string>猿音</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>yuanyin</string>
+	<string>猿音</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -86,6 +86,13 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_dartobservatory._tcp</string>
+		<string>_smb._tcp</string>
+		<string>_webdav._tcp</string>
+		<string>_webdavs._tcp</string>
+		<string>_diskstation._tcp</string>
+		<string>_synology._tcp</string>
+		<string>_http._tcp</string>
+		<string>_https._tcp</string>
 	</array>
 </dict>
 </plist>
