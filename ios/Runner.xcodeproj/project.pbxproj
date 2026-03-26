@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -100,7 +100,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		6537EFFE2F74372D00349480 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		6537EFFE2F74372D00349480 /* Exceptions for "MusicActivityWidget" folder in "MusicActivityWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -110,7 +110,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		6537EFE92F74372C00349480 /* MusicActivityWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (6537EFFE2F74372D00349480 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = MusicActivityWidget; sourceTree = "<group>"; };
+		6537EFE92F74372C00349480 /* MusicActivityWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6537EFFE2F74372D00349480 /* Exceptions for "MusicActivityWidget" folder in "MusicActivityWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = MusicActivityWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -266,8 +277,6 @@
 				6537EFE92F74372C00349480 /* MusicActivityWidget */,
 			);
 			name = MusicActivityWidgetExtension;
-			packageProductDependencies = (
-			);
 			productName = MusicActivityWidgetExtension;
 			productReference = 6537EFE42F74372C00349480 /* MusicActivityWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -377,13 +386,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

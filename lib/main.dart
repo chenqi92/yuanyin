@@ -80,19 +80,9 @@ void main() async {
       ),
     );
   }, (error, stack) {
-    runApp(MaterialApp(
-      home: Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Uncaught Error:\n$error\n\n$stack',
-              style: const TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          ),
-        ),
-      ),
-    ));
+    // 仅记录日志，不替换整个 app — 非致命异常不应杀死 UI
+    debugPrint('⚠️ Uncaught Error: $error');
+    debugPrint('$stack');
   });
 }
 

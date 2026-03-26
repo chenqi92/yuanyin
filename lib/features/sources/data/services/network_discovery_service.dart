@@ -210,7 +210,7 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
     for (final discovery in _discoveries.values) {
       try {
         await discovery.stop();
-      } on Exception catch (e) {
+      } catch (e) {
         _log.w('NetworkDiscovery: 停止发现失败: $e');
       }
     }
