@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/theme.dart';
+import '../../../../shared/widgets/modern_music_ui.dart';
+import '../../../../shared/widgets/glass_widgets.dart';
 import '../../data/services/smb_scanner.dart';
 import '../../data/services/network_discovery_service.dart';
 import '../../domain/entities/source_entity.dart';
@@ -12,7 +14,6 @@ import '../providers/source_provider.dart';
 import '../../../library/data/services/metadata_scraper.dart';
 import '../../../library/presentation/providers/library_provider.dart';
 
-/// 数据源管理页 — 参照 my-nas SourcesPage
 class SourcesPage extends ConsumerStatefulWidget {
   const SourcesPage({super.key});
 
@@ -24,7 +25,6 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
   @override
   void initState() {
     super.initState();
-    // 启动网络发现
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(networkDiscoveryProvider.notifier).startDiscovery();
     });
@@ -35,206 +35,420 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
     final state = ref.watch(sourcesProvider);
     final discoveryState = ref.watch(networkDiscoveryProvider);
 
-    return Scaffold(
-      backgroundColor: context.yyBgBase,
-      body: SafeArea(child: Column(children: [
-        // 顶部栏
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
-          child: Row(children: [
-            CupertinoButton(padding: EdgeInsets.zero,
-              child: Icon(CupertinoIcons.back, color: context.yyTextPrimary, size: 24),
-              onPressed: () => Navigator.of(context).pop()),
-            const SizedBox(width: 4),
-            Expanded(child: Text('连接源', style: TextStyle(
-              color: context.yyTextPrimary, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5))),
-            if (state.isScanning)
-              const SizedBox(width: 20, height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: YYColors.accentPrimary)),
-            // 雷达扫描按钮
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: discoveryState.isDiscovering
-                  ? null
-                  : () => ref.read(networkDiscoveryProvider.notifier).startDiscovery(),
-              child: Container(padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: YYColors.accentSecondary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
-                child: discoveryState.isDiscovering
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: YYColors.accentSecondary))
-                    : const Icon(CupertinoIcons.antenna_radiowaves_left_right, color: YYColors.accentSecondary, size: 20))),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => _pushAdd(context),
-              child: Container(padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: YYColors.accentPrimary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
-                child: const Icon(CupertinoIcons.add, color: YYColors.accentPrimary, size: 20))),
-          ]),
-        ),
-
-        // 扫描进度
-        if (state.isScanning) _ScanBar(state: state),
-
-        const SizedBox(height: 12),
-
-        // 内容列表
-        Expanded(
-          child: state.sources.isEmpty && discoveryState.devices.isEmpty
-            ? _EmptyView(onAdd: () => _pushAdd(context))
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                children: [
-                  // ── 发现的设备 ──
-                  if (discoveryState.devices.isNotEmpty || discoveryState.isDiscovering) ...[
-                    _SectionHeader(
-                      title: '发现的设备',
-                      subtitle: discoveryState.isDiscovering ? '正在扫描局域网...' : '点击添加到连接源',
-                    ),
-                    const SizedBox(height: 8),
-                    ...discoveryState.devices.map((device) => _DiscoveredDeviceCard(
-                      device: device,
+    return YYScenicBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Top Bar
+              YYPageHeader(
+                eyebrow: discoveryState.isDiscovering ? '正在发现设备...' : '数据源',
+                title: '连接中心',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    YYHeaderActionButton(
+                      icon: CupertinoIcons.antenna_radiowaves_left_right,
                       onTap: () {
-                        Navigator.of(context).push(CupertinoPageRoute(
-                          builder: (_) => AddSourcePage(
-                            preselectedType: device.type,
-                            discoveredDevice: device,
-                          ),
-                        ));
+                        HapticFeedback.mediumImpact();
+                        ref.read(networkDiscoveryProvider.notifier).startDiscovery();
                       },
-                    )),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // ── 已配置的连接 ──
-                  if (state.sources.isNotEmpty) ...[
-                    _SectionHeader(
-                      title: '已配置的连接',
-                      subtitle: '${state.sources.length} 个数据源',
+                      primary: discoveryState.isDiscovering,
                     ),
-                    const SizedBox(height: 8),
-                    ...state.sources.map((source) => _SourceCard(
-                      source: source,
-                      onTap: () => _showOptions(context, ref, source),
-                      onRescan: () => ref.read(sourcesProvider.notifier).scanSource(source.id),
-                    )),
+                    const SizedBox(width: 12),
+                    YYHeaderActionButton(
+                      icon: CupertinoIcons.add,
+                      onTap: () => _pushAdd(context),
+                    ),
                   ],
-                ],
+                ),
               ),
+
+              if (state.isScanning) _ScanBar(state: state),
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: state.sources.isEmpty && discoveryState.devices.isEmpty
+                  ? _EmptyView(onAdd: () => _pushAdd(context))
+                  : ListView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                      children: [
+                        if (discoveryState.devices.isNotEmpty || discoveryState.isDiscovering) ...[
+                          YYSectionTitle(
+                            title: '发现的设备',
+                            subtitle: discoveryState.isDiscovering ? '扫描中...' : '点击卡片快速连接',
+                          ),
+                          ...discoveryState.devices.map((device) => _DiscoveredDeviceCard(
+                            device: device,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.of(context).push(CupertinoPageRoute(
+                                builder: (_) => AddSourcePage(
+                                  preselectedType: device.type,
+                                  discoveredDevice: device,
+                                ),
+                              ));
+                            },
+                          )),
+                          const SizedBox(height: 24),
+                        ],
+
+                        if (state.sources.isNotEmpty) ...[
+                          YYSectionTitle(
+                            title: '已配置的连接',
+                            subtitle: '${state.sources.length} 个活跃节点',
+                          ),
+                          ...state.sources.map((source) => _SourceCard(
+                            source: source,
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              _showOptions(context, ref, source);
+                            },
+                            onRescan: () => ref.read(sourcesProvider.notifier).scanSource(source.id),
+                          )),
+                        ],
+                      ],
+                    ),
+              ),
+            ],
+          ),
         ),
-      ])),
+      ),
     );
   }
 
   void _pushAdd(BuildContext context) {
+    HapticFeedback.mediumImpact();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: context.yyBgElevated,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SafeArea(child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(margin: const EdgeInsets.only(top: 12, bottom: 16), width: 40, height: 4,
-            decoration: BoxDecoration(color: context.isDark ? Colors.grey[600] : Colors.grey[400],
-              borderRadius: BorderRadius.circular(2))),
-          Text('选择源类型', style: TextStyle(color: context.yyTextPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 16),
-          ..._types.map((t) => GestureDetector(
-            onTap: t.ok ? () {
-              Navigator.pop(ctx);
-              Navigator.of(context).push(CupertinoPageRoute(
-                builder: (_) => AddSourcePage(preselectedType: t.type)));
-            } : null,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: t.ok
-                  ? (context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.03))
-                  : (context.isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.015)),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06))),
-              child: Row(children: [
-                Container(width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    gradient: t.ok ? LinearGradient(colors: [t.color, t.color.withValues(alpha: 0.7)]) : null,
-                    color: t.ok ? null : context.yyTextTertiary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(11)),
-                  child: Icon(t.icon, color: t.ok ? Colors.white : context.yyTextTertiary, size: 20)),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(t.label, style: TextStyle(
-                    color: t.ok ? context.yyTextPrimary : context.yyTextTertiary,
-                    fontSize: 15, fontWeight: FontWeight.w700)),
-                  Text(t.subtitle, style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
-                ])),
-                if (!t.ok) Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: context.yyTextTertiary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                  child: Text('即将', style: TextStyle(color: context.yyTextTertiary, fontSize: 10, fontWeight: FontWeight.w600))),
-                if (t.ok) Icon(CupertinoIcons.chevron_right, size: 14, color: context.yyTextTertiary),
-              ])),
-          )),
-          const SizedBox(height: 4),
-        ]),
-      )),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SourceTypePicker(
+        onTypeSelected: (type) {
+          Navigator.pop(ctx);
+          Navigator.of(context).push(CupertinoPageRoute(
+            builder: (_) => AddSourcePage(preselectedType: type)));
+        },
+      ),
     );
   }
 
-  // 静态方法保持不变（被 _SourceCard 使用）
-
-  // 长按/点击选项
   void _showOptions(BuildContext context, WidgetRef ref, SourceEntity source) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: context.yyBgElevated,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4,
-          decoration: BoxDecoration(color: context.isDark ? Colors.grey[600] : Colors.grey[400],
-            borderRadius: BorderRadius.circular(2))),
-        // 源信息头
-        Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Row(children: [
-            Container(width: 44, height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [_typeColor(source.type), _typeColor(source.type).withValues(alpha: 0.7)]),
-                borderRadius: BorderRadius.circular(12)),
-              child: Icon(_typeIcon(source.type), color: Colors.white, size: 20)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(source.name, style: TextStyle(color: context.yyTextPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-              Text(source.typeDisplayName, style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
-            ])),
-            if (source.scanPaths.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: YYColors.accentPrimary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: Text('${source.scanPaths.length} 个目录', style: const TextStyle(color: YYColors.accentPrimary, fontSize: 11, fontWeight: FontWeight.w600))),
-          ])),
-        Divider(height: 1, color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
-        _OptionTile(icon: CupertinoIcons.folder_fill, label: '管理扫描目录',
-          onTap: () { Navigator.pop(ctx);
-            Navigator.of(context).push(CupertinoPageRoute(
-              builder: (_) => _FolderManagerPage(source: source))); }),
-        _OptionTile(icon: CupertinoIcons.arrow_clockwise, label: '重新扫描',
-          onTap: () { Navigator.pop(ctx); ref.read(sourcesProvider.notifier).scanSource(source.id); }),
-        _OptionTile(icon: CupertinoIcons.tag_fill, label: '元数据刮削',
-          onTap: () { Navigator.pop(ctx); _showScrapeForSource(context, ref, source); }),
-        _OptionTile(icon: CupertinoIcons.pencil, label: '编辑',
-          onTap: () { Navigator.pop(ctx); Navigator.of(context).push(
-            CupertinoPageRoute(builder: (_) => AddSourcePage(existingSource: source, preselectedType: source.type))); }),
-        _OptionTile(icon: CupertinoIcons.delete, label: '删除', color: YYColors.statusError,
-          onTap: () { Navigator.pop(ctx); _confirmDelete(context, ref, source); }),
-        const SizedBox(height: 16),
-      ])),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SourceOptionsSheet(
+        source: source,
+        onOptionTap: (action) {
+          Navigator.pop(ctx);
+          switch (action) {
+            case 'folder':
+              Navigator.of(context).push(CupertinoPageRoute(builder: (_) => _FolderManagerPage(source: source)));
+              break;
+            case 'rescan':
+              ref.read(sourcesProvider.notifier).scanSource(source.id);
+              break;
+            case 'scrape':
+              _showScrapeForSource(context, ref, source);
+              break;
+            case 'edit':
+              Navigator.of(context).push(CupertinoPageRoute(builder: (_) => AddSourcePage(existingSource: source, preselectedType: source.type)));
+              break;
+            case 'delete':
+              _confirmDelete(context, ref, source);
+              break;
+          }
+        },
+      ),
     );
   }
+
+  void _showScrapeForSource(BuildContext context, WidgetRef ref, SourceEntity source) async {
+    final db = ref.read(musicDatabaseProvider);
+    final allSongs = await db.getAllSongs();
+    final sourceSongs = allSongs.where((s) => s.sourceId == source.id).toList();
+    if (sourceSongs.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('此数据源暂无歌曲'), behavior: SnackBarBehavior.floating));
+      }
+      return;
+    }
+    if (context.mounted) {
+      showDialog(context: context, useRootNavigator: true, barrierDismissible: false,
+        builder: (_) => _SourceScrapeDialog(ref: ref, sourceId: source.id, sourceName: source.name));
+    }
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, SourceEntity source) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      backgroundColor: context.yyBgElevated,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('删除连接', style: context.yyTextTheme.titleLarge),
+      content: Text('确定要移除 "${source.name}" 吗？关联的音乐库数据也将被清理。', style: context.yyTextTheme.bodyMedium),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('取消', style: TextStyle(color: context.yyTextTertiary))),
+        TextButton(
+          onPressed: () { ref.read(sourcesProvider.notifier).removeSource(source.id); Navigator.pop(ctx); },
+          child: const Text('确认删除', style: TextStyle(color: YYColors.statusError, fontWeight: FontWeight.bold))),
+      ],
+    ));
+  }
+
+  static IconData _typeIcon(SourceType t) => switch (t) {
+    SourceType.local => CupertinoIcons.folder_fill,
+    SourceType.smb => CupertinoIcons.desktopcomputer,
+    SourceType.webdav => CupertinoIcons.globe,
+    SourceType.synology => CupertinoIcons.cube_box_fill,
+    SourceType.qnap => CupertinoIcons.archivebox_fill,
+    SourceType.jellyfin => CupertinoIcons.play_rectangle_fill,
+    SourceType.emby => CupertinoIcons.dot_radiowaves_left_right,
+    SourceType.plex => CupertinoIcons.play_fill,
+  };
+
+  static Color _typeColor(SourceType t) => switch (t) {
+    SourceType.synology => const Color(0xFF2196F3),
+    SourceType.webdav => const Color(0xFF43A047),
+    SourceType.smb => const Color(0xFFFF9800),
+    SourceType.jellyfin => const Color(0xFF9C27B0),
+    SourceType.emby => const Color(0xFF00BCD4),
+    SourceType.plex => const Color(0xFFE91E63),
+    _ => YYColors.accentPrimary,
+  };
+}
+
+class _DiscoveredDeviceCard extends StatelessWidget {
+  final DiscoveredDevice device;
+  final VoidCallback onTap;
+  const _DiscoveredDeviceCard({required this.device, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final typeColor = _SourcesPageState._typeColor(device.type);
+    final icon = _SourcesPageState._typeIcon(device.type);
+
+    return YYPanel(
+      margin: const EdgeInsets.only(bottom: 12),
+      onTap: onTap,
+      child: Row(
+        children: [
+          YYIconBadge(icon: icon, color: typeColor, size: 44),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(device.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text('${device.host}:${device.port}', style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
+              ],
+            ),
+          ),
+          YYPillButton(label: '连接', onTap: onTap, primary: true, compact: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceCard extends StatelessWidget {
+  final SourceEntity source;
+  final VoidCallback onTap;
+  final VoidCallback onRescan;
+  const _SourceCard({required this.source, required this.onTap, required this.onRescan});
+
+  @override
+  Widget build(BuildContext context) {
+    final typeColor = _SourcesPageState._typeColor(source.type);
+    final icon = _SourcesPageState._typeIcon(source.type);
+    final statusColor = switch (source.status) {
+      SourceStatus.connected => YYColors.statusSuccess,
+      SourceStatus.connecting => YYColors.accentPrimary,
+      SourceStatus.error => YYColors.statusError,
+      SourceStatus.disconnected => context.yyTextTertiary,
+    };
+
+    return YYPanel(
+      margin: const EdgeInsets.only(bottom: 12),
+      onTap: onTap,
+      child: Row(
+        children: [
+          YYIconBadge(icon: icon, color: typeColor, size: 48),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(source.name.isNotEmpty ? source.name : source.typeDisplayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                    const SizedBox(width: 6),
+                    Text(source.typeDisplayName, style: TextStyle(color: context.yyTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    if (source.songCount > 0) ...[
+                      Text(' · ', style: TextStyle(color: context.yyTextTertiary)),
+                      Text('${source.songCount} 曲', style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Icon(CupertinoIcons.chevron_right, size: 14, color: Colors.white24),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceTypePicker extends StatelessWidget {
+  final ValueChanged<SourceType> onTypeSelected;
+  const _SourceTypePicker({required this.onTypeSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 36, height: 5, decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(10))),
+          const SizedBox(height: 24),
+          Text('选择源类型', style: context.yyTextTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 24),
+          ..._types.map((t) => ListTile(
+            enabled: t.ok,
+            onTap: () => onTypeSelected(t.type),
+            leading: YYIconBadge(icon: t.icon, color: t.ok ? t.color : Colors.grey, size: 40),
+            title: Text(t.label, style: TextStyle(fontWeight: FontWeight.w700, color: t.ok ? Colors.white : Colors.white24)),
+            subtitle: Text(t.subtitle, style: const TextStyle(fontSize: 12)),
+            trailing: t.ok ? const Icon(CupertinoIcons.chevron_right, size: 14) : const Text('开发中', style: TextStyle(fontSize: 10, color: Colors.white12)),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceOptionsSheet extends StatelessWidget {
+  final SourceEntity source;
+  final ValueChanged<String> onOptionTap;
+  const _SourceOptionsSheet({required this.source, required this.onOptionTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 36, height: 5, decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(10))),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              YYIconBadge(icon: _SourcesPageState._typeIcon(source.type), color: _SourcesPageState._typeColor(source.type), size: 54),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(source.name, style: context.yyTextTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(source.typeDisplayName, style: TextStyle(color: context.yyTextSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _OptionItem(icon: CupertinoIcons.folder, label: '管理目录', onTap: () => onOptionTap('folder')),
+          _OptionItem(icon: CupertinoIcons.refresh, label: '重新扫描', onTap: () => onOptionTap('rescan')),
+          _OptionItem(icon: CupertinoIcons.tag, label: '元数据刮削', onTap: () => onOptionTap('scrape')),
+          _OptionItem(icon: CupertinoIcons.pencil, label: '编辑连接', onTap: () => onOptionTap('edit')),
+          _OptionItem(icon: CupertinoIcons.trash, label: '删除连接', color: YYColors.statusError, onTap: () => onOptionTap('delete')),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+  final VoidCallback onTap;
+  const _OptionItem({required this.icon, required this.label, this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, color: color ?? Colors.white70, size: 22),
+      title: Text(label, style: TextStyle(color: color ?? Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+    );
+  }
+}
+
+class _ScanBar extends StatelessWidget {
+  final SourcesState state;
+  const _ScanBar({required this.state});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: GlassContainer(
+        padding: const EdgeInsets.all(12),
+        borderRadius: BorderRadius.circular(12),
+        tintColor: YYColors.accentPrimary.withValues(alpha: 0.1),
+        child: Row(
+          children: [
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: YYColors.accentPrimary)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('正在同步媒体库...', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text('${state.scannedCount} 个曲目已发现', style: TextStyle(color: context.yyTextSecondary, fontSize: 11)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyView extends StatelessWidget {
+  final VoidCallback onAdd;
+  const _EmptyView({required this.onAdd});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const YYIconBadge(icon: CupertinoIcons.cloud_upload, color: Colors.white10, size: 80),
+          const SizedBox(height: 24),
+          Text('尚未建立连接', style: context.yyTextTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text('连接你的 NAS 或本地目录\n开启无损音乐之旅', textAlign: TextAlign.center, style: TextStyle(color: context.yyTextSecondary)),
+          const SizedBox(height: 32),
+          YYPillButton(label: '立即添加', onTap: onAdd, primary: true),
+        ],
+      ),
+    );
+  }
+}
+
+extension on BuildContext {
+  TextTheme get yyTextTheme => Theme.of(this).textTheme;
+}
+
 
   void _showScrapeForSource(BuildContext context, WidgetRef ref, SourceEntity source) async {
     final db = ref.read(musicDatabaseProvider);

@@ -76,7 +76,7 @@ void main() async {
           if (audioHandler != null)
             audioHandlerProvider.overrideWith((ref) => audioHandler),
         ],
-        child: const PrimuseApp(),
+        child: const YuanYinApp(),
       ),
     );
   }, (error, stack) {
@@ -96,9 +96,9 @@ void main() async {
   });
 }
 
-/// Primuse App 根组件 — 支持 light/dark/system 主题切换 + i18n
-class PrimuseApp extends ConsumerWidget {
-  const PrimuseApp({super.key});
+/// YuanYin App 根组件 — 支持 light/dark/system 主题切换 + i18n
+class YuanYinApp extends ConsumerWidget {
+  const YuanYinApp({super.key});
 
   ThemeMode _resolveThemeMode(String mode) {
     switch (mode) {
@@ -118,10 +118,10 @@ class PrimuseApp extends ConsumerWidget {
 
     return MacOSMenuBar(
       child: MaterialApp.router(
-        title: 'Primuse',
+        title: 'YuanYin',
         debugShowCheckedModeBanner: false,
-        theme: buildPrimuseLightTheme(),
-        darkTheme: buildPrimuseDarkTheme(),
+        theme: buildYYLightTheme(),
+        darkTheme: buildYYDarkTheme(),
         themeMode: _resolveThemeMode(settings.themeMode),
         routerConfig: goRouter,
         locale: localeOverride,

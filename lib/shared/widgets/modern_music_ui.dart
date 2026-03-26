@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../../app/theme/theme.dart';
 import '../../features/player/domain/entities/music_item.dart';
 import 'gradient_cover.dart';
+import 'glass_widgets.dart';
 
+/// 全局流体背景 - 优化后的 Liquid Glass 2.0 风格
 class YYScenicBackground extends StatelessWidget {
   final Widget child;
   final Color? accent;
@@ -26,45 +28,37 @@ class YYScenicBackground extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  base,
-                  Color.alphaBlend(Colors.black.withValues(alpha: 0.08), base),
-                ],
-              ),
-            ),
-          ),
-        ),
+        // Base Pure Black Layer
+        Positioned.fill(child: ColoredBox(color: base)),
+        
+        // Dynamic Glow Layers
         Positioned(
-          top: -96,
-          right: accentAlignment.x >= 0 ? -70 : null,
-          left: accentAlignment.x < 0 ? -70 : null,
+          top: -120,
+          right: accentAlignment.x >= 0 ? -80 : null,
+          left: accentAlignment.x < 0 ? -80 : null,
           child: _GlowOrb(
-            size: 132,
+            size: 320,
             colors: [
-              glow.withValues(alpha: isDark ? 0.08 : 0.05),
-              YYColors.accentSecondary.withValues(alpha: isDark ? 0.03 : 0.015),
+              glow.withValues(alpha: isDark ? 0.12 : 0.08),
+              YYColors.accentSecondary.withValues(alpha: isDark ? 0.05 : 0.03),
               Colors.transparent,
             ],
           ),
         ),
         Positioned(
-          bottom: -96,
-          left: -40,
+          bottom: -140,
+          left: -100,
           child: _GlowOrb(
-            size: 120,
+            size: 280,
             colors: [
-              YYColors.accentSecondary.withValues(alpha: isDark ? 0.05 : 0.02),
-              YYColors.accentTertiary.withValues(alpha: isDark ? 0.03 : 0.015),
+              YYColors.accentTertiary.withValues(alpha: isDark ? 0.08 : 0.04),
+              glow.withValues(alpha: isDark ? 0.04 : 0.02),
               Colors.transparent,
             ],
           ),
         ),
+        
+        // Subtle Surface Texture / Gradient
         Positioned.fill(
           child: IgnorePointer(
             child: DecoratedBox(
@@ -73,9 +67,9 @@ class YYScenicBackground extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withValues(alpha: 0.03),
+                    Colors.white.withValues(alpha: 0.02),
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.10),
+                    Colors.black.withValues(alpha: 0.08),
                   ],
                 ),
               ),
@@ -98,7 +92,7 @@ class _GlowOrb extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+        imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
         child: Container(
           width: size,
           height: size,
@@ -112,14 +106,15 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
+/// 统一的玻璃面板组件 - 继承 GlassContainer
 class YYPanel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final VoidCallback? onTap;
-  final Gradient? gradient;
   final Color? color;
-  final double radius;
+  final double? radius;
+  final bool thick;
 
   const YYPanel({
     super.key,
@@ -127,79 +122,28 @@ class YYPanel extends StatelessWidget {
     this.padding,
     this.margin,
     this.onTap,
-    this.gradient,
     this.color,
-    this.radius = YYRadius.lg,
+    this.radius,
+    this.thick = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.isDark;
-    final panelDecoration = BoxDecoration(
-      gradient: gradient,
-      color: gradient == null
-          ? color ??
-                context.yyBgElevated.withValues(alpha: isDark ? 0.94 : 0.985)
-          : null,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        width: 1,
-      ),
-      boxShadow: [
-        BoxShadow(
-          offset: Offset(0, isDark ? 18 : 12),
-          blurRadius: isDark ? 34 : 24,
-          spreadRadius: isDark ? -24 : -18,
-          color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.08),
-        ),
-      ],
-    );
-
-    final panelBody = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: isDark ? 0.02 : 0.16),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: Padding(
-        padding: padding ?? const EdgeInsets.all(16),
-        child: child,
-      ),
-    );
-
-    if (onTap == null) {
-      return Container(
-        margin: margin,
-        decoration: panelDecoration,
-        child: panelBody,
-      );
-    }
-
-    return Container(
+    final panel = GlassContainer(
+      thick: thick,
+      padding: padding ?? const EdgeInsets.all(16),
       margin: margin,
-      child: Material(
-        color: Colors.transparent,
-        child: Ink(
-          decoration: panelDecoration,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(radius),
-            overlayColor: WidgetStatePropertyAll(
-              Colors.white.withValues(alpha: isDark ? 0.05 : 0.03),
-            ),
-            child: panelBody,
-          ),
-        ),
-      ),
+      borderRadius: BorderRadius.circular(radius ?? YYRadius.card),
+      tintColor: color,
+      child: child,
+    );
+
+    if (onTap == null) return panel;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: panel,
     );
   }
 }
@@ -219,52 +163,20 @@ class YYHeaderActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = context.isDark;
-    final decoration = BoxDecoration(
-      color: primary && !isDark ? YYColors.accentPrimary : null,
-      gradient: primary && isDark ? YYColors.accentGradient : null,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-        color: primary
-            ? Colors.transparent
-            : isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.05),
-      ),
-      boxShadow: primary
-          ? [
-              BoxShadow(
-                offset: const Offset(0, 10),
-                blurRadius: 20,
-                spreadRadius: -12,
-                color: YYColors.accentPrimary.withValues(
-                  alpha: isDark ? 0.30 : 0.18,
-                ),
-              ),
-            ]
-          : null,
-    );
+    
+    if (primary) {
+      return GlassButton(
+        onTap: onTap,
+        size: 42,
+        tintColor: isDark ? YYColors.accentPrimary.withValues(alpha: 0.2) : null,
+        child: Icon(icon, color: Colors.white, size: 20),
+      );
+    }
 
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        width: 40,
-        height: 40,
-        decoration: decoration,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          overlayColor: WidgetStatePropertyAll(
-            primary
-                ? Colors.white.withValues(alpha: 0.12)
-                : context.yyTextPrimary.withValues(alpha: 0.05),
-          ),
-          child: Icon(
-            icon,
-            color: primary ? Colors.white : context.yyTextPrimary,
-            size: 19,
-          ),
-        ),
-      ),
+    return GlassButton(
+      onTap: onTap,
+      size: 42,
+      child: Icon(icon, color: context.yyTextPrimary, size: 20),
     );
   }
 }
@@ -286,30 +198,38 @@ class YYPageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  eyebrow,
+                  eyebrow.toUpperCase(),
                   style: TextStyle(
                     color: context.yyTextTertiary,
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.35,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(title, style: Theme.of(context).textTheme.headlineLarge),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: context.yyTextTheme.headlineLarge?.copyWith(
+                    fontSize: 32,
+                    letterSpacing: -1.2,
+                  ),
+                ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     subtitle!,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: context.yyTextTheme.bodyMedium?.copyWith(
+                      color: context.yyTextSecondary,
+                    ),
                   ),
                 ],
               ],
@@ -336,76 +256,39 @@ class YYSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowChildren = <Widget>[
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!, style: Theme.of(context).textTheme.labelMedium),
-            ],
-          ],
-        ),
-      ),
-    ];
-
-    if (trailing != null) {
-      rowChildren.add(trailing!);
-    }
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        children: rowChildren,
-      ),
-    );
-  }
-}
-
-class YYIconBadge extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final double size;
-
-  const YYIconBadge({
-    super.key,
-    required this.icon,
-    required this.color,
-    this.size = 42,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = context.isDark;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size / 3.2),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.95),
-            Color.alphaBlend(
-              YYColors.accentSecondary.withValues(alpha: 0.10),
-              color,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: context.yyTextTheme.titleLarge?.copyWith(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle!,
+                    style: context.yyTextTheme.labelMedium?.copyWith(
+                      color: context.yyTextTertiary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, 14),
-            blurRadius: 28,
-            spreadRadius: -18,
-            color: color.withValues(alpha: isDark ? 0.38 : 0.18),
           ),
+          if (trailing != null) trailing!,
         ],
       ),
-      child: Icon(icon, color: Colors.white, size: size * 0.44),
     );
   }
 }
@@ -429,317 +312,38 @@ class YYPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = context.isDark;
-    final bg = primary
-        ? null
-        : context.yyBgSurface.withValues(alpha: isDark ? 0.84 : 0.96);
-    final textColor = primary ? Colors.white : context.yyTextPrimary;
-    final decoration = BoxDecoration(
-      color: primary && !isDark ? YYColors.accentPrimary : bg,
-      gradient: primary && isDark ? YYColors.accentGradient : null,
-      borderRadius: BorderRadius.circular(YYRadius.full),
-      border: Border.all(
-        color: primary
-            ? Colors.transparent
-            : isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.05),
-      ),
-      boxShadow: primary
-          ? [
-              BoxShadow(
-                offset: const Offset(0, 10),
-                blurRadius: 22,
-                spreadRadius: -14,
-                color: YYColors.accentPrimary.withValues(
-                  alpha: isDark ? 0.30 : 0.16,
-                ),
-              ),
-            ]
-          : null,
-    );
-
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassContainer(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 12 : 15,
-          vertical: compact ? 8 : 10,
+          horizontal: compact ? 14 : 20,
+          vertical: compact ? 8 : 12,
         ),
-        decoration: decoration,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(YYRadius.full),
-          overlayColor: WidgetStatePropertyAll(
-            primary
-                ? Colors.white.withValues(alpha: 0.12)
-                : context.yyTextPrimary.withValues(alpha: 0.05),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: textColor, size: compact ? 16 : 18),
-                SizedBox(width: compact ? 6 : 8),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: compact ? 12 : 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class YYStatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const YYStatChip({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: context.yyBgSurface.withValues(
-            alpha: context.isDark ? 0.72 : 0.90,
-          ),
-          borderRadius: BorderRadius.circular(YYRadius.md),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(YYRadius.full),
+        tintColor: primary 
+          ? isDark ? YYColors.accentPrimary.withValues(alpha: 0.3) : YYColors.accentPrimary
+          : null,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              value,
-              style: TextStyle(
-                color: context.yyTextPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+            if (icon != null) ...[
+              Icon(
+                icon, 
+                color: primary ? Colors.white : context.yyTextPrimary, 
+                size: compact ? 16 : 18
               ),
-            ),
-            const SizedBox(height: 4),
+              const SizedBox(width: 8),
+            ],
             Text(
               label,
               style: TextStyle(
-                color: context.yyTextSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+                color: primary ? Colors.white : context.yyTextPrimary,
+                fontSize: compact ? 13 : 14,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class YYTag extends StatelessWidget {
-  final String text;
-  final Color? color;
-  final IconData? icon;
-  final VoidCallback? onTap;
-
-  const YYTag({
-    super.key,
-    required this.text,
-    this.color,
-    this.icon,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final chipColor = color ?? context.yyBgSurface;
-    final decoration = BoxDecoration(
-      color: chipColor.withValues(alpha: context.isDark ? 0.22 : 0.75),
-      borderRadius: BorderRadius.circular(YYRadius.full),
-      border: Border.all(color: chipColor.withValues(alpha: 0.18)),
-    );
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: context.yyTextSecondary),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            text,
-            style: TextStyle(
-              color: context.yyTextSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (onTap == null) {
-      return Container(decoration: decoration, child: content);
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: decoration,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(YYRadius.full),
-          overlayColor: WidgetStatePropertyAll(
-            context.yyTextPrimary.withValues(alpha: 0.04),
-          ),
-          child: content,
-        ),
-      ),
-    );
-  }
-}
-
-class YYMetricBandItem {
-  const YYMetricBandItem({required this.label, required this.value, this.tint});
-
-  final String label;
-  final String value;
-  final Color? tint;
-}
-
-class YYMetricBand extends StatelessWidget {
-  final List<YYMetricBandItem> items;
-
-  const YYMetricBand({super.key, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: context.yyBgSurface.withValues(
-          alpha: context.isDark ? 0.56 : 0.84,
-        ),
-        borderRadius: BorderRadius.circular(YYRadius.md),
-        border: Border.all(
-          color: context.isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.04),
-        ),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < items.length; index++) ...[
-            Expanded(child: _MetricBandCell(item: items[index])),
-            if (index != items.length - 1)
-              Container(width: 1, height: 34, color: context.yySeparator),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricBandCell extends StatelessWidget {
-  final YYMetricBandItem item;
-
-  const _MetricBandCell({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final tint = item.tint ?? context.yyTextPrimary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            item.value,
-            style: TextStyle(
-              color: tint,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            item.label,
-            style: TextStyle(
-              color: context.yyTextTertiary,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class YYActionRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const YYActionRow({
-    super.key,
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        overlayColor: WidgetStatePropertyAll(
-          context.yyTextPrimary.withValues(alpha: 0.04),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              YYIconBadge(icon: icon, color: color, size: 36),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: context.yyTextTertiary,
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -771,94 +375,103 @@ class YYTrackRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return YYPanel(
-      margin: margin ?? const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      padding: const EdgeInsets.all(11),
-      color: active
-          ? YYColors.accentPrimary.withValues(
-              alpha: context.isDark ? 0.14 : 0.12,
-            )
-          : null,
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      color: active ? YYColors.accentPrimary.withValues(alpha: 0.15) : null,
       onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onLongPress: onLongPress,
-        child: Row(
-          children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 12)],
-            ClipRRect(
+      child: Row(
+        children: [
+          if (leading != null) ...[leading!, const SizedBox(width: 12)],
+          Hero(
+            tag: 'track-cover-${song.id}',
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(YYRadius.sm),
               child: SizedBox(
-                width: 54,
-                height: 54,
+                width: 52,
+                height: 52,
                 child: GradientCover(
                   seed: '${song.title}_${song.artist}',
                   coverUrl: song.coverUrl,
-                  size: 54,
+                  size: 52,
                   borderRadius: YYRadius.sm,
                 ),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active
-                          ? YYColors.accentPrimary
-                          : context.yyTextPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: active ? YYColors.accentPrimary : context.yyTextPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle ?? '${song.artist} · ${song.album}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: context.yyTextSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            trailing ??
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      song.durationText,
-                      style: TextStyle(
-                        color: context.yyTextTertiary,
-                        fontSize: 12,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    if ((song.format ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        song.format!,
-                        style: TextStyle(
-                          color: YYColors.accentSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ],
                 ),
-          ],
-        ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle ?? song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.yyTextSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          trailing ?? _DefaultTrailing(song: song),
+        ],
       ),
     );
   }
 }
+
+class _DefaultTrailing extends StatelessWidget {
+  final MusicItem song;
+  const _DefaultTrailing({required this.song});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          song.durationText,
+          style: TextStyle(
+            color: context.yyTextTertiary,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        if ((song.format ?? '').isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            song.format!.toUpperCase(),
+            style: TextStyle(
+              color: YYColors.accentSecondary.withValues(alpha: 0.8),
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+extension on BuildContext {
+  TextTheme get yyTextTheme => Theme.of(this).textTheme;
+}
+

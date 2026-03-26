@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,85 +24,109 @@ class MiniPlayer extends ConsumerWidget {
     }
 
     return GestureDetector(
-      onTap: () => context.push('/player'),
-      onLongPress: () => showQueuePanel(context),
-      child: SizedBox(
-        height: YYSizes.miniPlayerHeight,
-        child: Column(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Hero(
-                    tag: 'mini-player-cover',
-                    child: _RotatingCover(
-                      seed: '${song.title}_${song.artist}',
-                      coverUrl: song.coverUrl,
-                      isPlaying: state.isPlaying,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.yyTextPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          song.album.isEmpty
-                              ? song.artist
-                              : '${song.artist} · ${song.album}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.yyTextSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _MiniControl(
-                    icon: state.isPlaying
-                        ? CupertinoIcons.pause_fill
-                        : CupertinoIcons.play_fill,
-                    primary: true,
-                    onTap: () => ref.read(playerProvider.notifier).togglePlay(),
-                  ),
-                  const SizedBox(width: 6),
-                  _MiniControl(
-                    icon: CupertinoIcons.list_bullet_below_rectangle,
-                    onTap: () => showQueuePanel(context),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(YYRadius.full),
-              child: LinearProgressIndicator(
-                value: state.progress,
-                minHeight: 3,
-                backgroundColor: Colors.white.withValues(alpha: 0.08),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  YYSeedPalette.primary(song.title),
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        context.push('/player');
+      },
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        showQueuePanel(context);
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Hero(
+                tag: 'mini-player-cover',
+                child: _RotatingCover(
+                  seed: '${song.title}_${song.artist}',
+                  coverUrl: song.coverUrl,
+                  isPlaying: state.isPlaying,
                 ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.yyTextTheme.titleMedium?.copyWith(
+                        fontSize: 14,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      song.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.yyTextTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        color: context.yyTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _MiniControl(
+                icon: state.isPlaying
+                    ? CupertinoIcons.pause_fill
+                    : CupertinoIcons.play_fill,
+                primary: true,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  ref.read(playerProvider.notifier).togglePlay();
+                },
+              ),
+              const SizedBox(width: 8),
+              _MiniControl(
+                icon: CupertinoIcons.list_bullet,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  showQueuePanel(context);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Progress bar as a very thin line at the bottom
+          Stack(
+            children: [
+              Container(
+                height: 2,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: state.progress.clamp(0.0, 1.0),
+                child: Container(
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: YYColors.accentPrimary,
+                    borderRadius: BorderRadius.circular(1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: YYColors.accentPrimary.withValues(alpha: 0.3),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -120,36 +145,22 @@ class _MiniControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        width: primary ? 34 : 32,
-        height: primary ? 34 : 32,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
-          gradient: primary && context.isDark ? YYColors.accentGradient : null,
-          color: primary
-              ? primary && !context.isDark
-                    ? YYColors.accentPrimary
-                    : null
-              : context.yyBgSurface.withValues(
-                  alpha: context.isDark ? 0.22 : 0.34,
-                ),
-          borderRadius: BorderRadius.circular(YYRadius.full),
-          border: Border.all(
-            color: primary
-                ? Colors.transparent
-                : context.isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.05),
-          ),
+          color: primary 
+            ? Colors.transparent 
+            : Colors.white.withValues(alpha: 0.05),
+          shape: BoxShape.circle,
         ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(YYRadius.full),
+        child: Center(
           child: Icon(
             icon,
-            color: primary ? Colors.white : context.yyTextPrimary,
-            size: primary ? 17 : 16,
+            color: primary ? YYColors.accentPrimary : context.yyTextPrimary,
+            size: primary ? 22 : 18,
           ),
         ),
       ),
@@ -180,7 +191,7 @@ class _RotatingCoverState extends State<_RotatingCover>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 16),
+      duration: const Duration(seconds: 20),
       vsync: this,
     );
     if (widget.isPlaying) {
@@ -218,29 +229,30 @@ class _RotatingCoverState extends State<_RotatingCover>
       child: Container(
         width: YYSizes.miniCoverSize,
         height: YYSizes.miniCoverSize,
-        padding: const EdgeInsets.all(1.5),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: YYSeedPalette.gradient(widget.seed),
+          borderRadius: BorderRadius.circular(YYRadius.coverSmall),
           boxShadow: [
             BoxShadow(
-              offset: const Offset(0, 10),
-              blurRadius: 24,
-              spreadRadius: -16,
-              color: Colors.black.withValues(alpha: 0.55),
+              offset: const Offset(0, 4),
+              blurRadius: 12,
+              color: Colors.black.withValues(alpha: 0.4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12.5),
+          borderRadius: BorderRadius.circular(YYRadius.coverSmall),
           child: GradientCover(
             seed: widget.seed,
             coverUrl: widget.coverUrl,
             size: YYSizes.miniCoverSize,
-            borderRadius: 12.5,
+            borderRadius: YYRadius.coverSmall,
           ),
         ),
       ),
     );
   }
+}
+
+extension on BuildContext {
+  TextTheme get yyTextTheme => Theme.of(this).textTheme;
 }

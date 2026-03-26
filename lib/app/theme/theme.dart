@@ -6,47 +6,51 @@ import 'package:flutter/material.dart';
 class YYColors {
   YYColors._();
 
-  static const Color bgBase = Color(0xFF060912);
-  static const Color bgElevated = Color(0xFF101826);
-  static const Color bgSurface = Color(0xFF152033);
-  static const Color bgGlassThick = Color.fromRGBO(10, 18, 31, 0.82);
-  static const Color bgGlassThickSolid = Color(0xFF121C2E);
-  static const Color bgGlassThin = Color.fromRGBO(22, 32, 51, 0.56);
-  static const Color bgGlassThinSolid = Color(0xFF1A2840);
+  // iOS 26 Liquid Glass - Pure Black Base
+  static const Color bgBase = Color(0xFF000000);
+  static const Color bgElevated = Color(0xFF0F0F12);
+  static const Color bgSurface = Color(0xFF16161C);
+  
+  // Glass colors as per design spec
+  static const Color bgGlassThick = Color.fromRGBO(28, 28, 30, 0.75); // blur(40px)
+  static const Color bgGlassThickSolid = Color(0xFF1C1C1E);
+  static const Color bgGlassThin = Color.fromRGBO(44, 44, 46, 0.4);   // blur(20px)
+  static const Color bgGlassThinSolid = Color(0xFF2C2C2E);
 
-  static const Color textPrimary = Color(0xFFF7F9FC);
-  static const Color textSecondary = Color(0xFFACB7C9);
-  static const Color textTertiary = Color(0xFF68748B);
+  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color.fromRGBO(235, 235, 245, 0.6); // iOS systemGray
+  static const Color textTertiary = Color.fromRGBO(235, 235, 245, 0.3);
   static const Color textOnAccent = Color(0xFFFFFFFF);
 
-  static const Color accentPrimary = Color(0xFFF68D2E);
-  static const Color accentSecondary = Color(0xFF22C7B8);
-  static const Color accentTertiary = Color(0xFF65CFF7);
+  // iOS Blue as per spec
+  static const Color accentPrimary = Color(0xFF0A84FF);
+  static const Color accentSecondary = Color(0xFF30D158); // iOS Green
+  static const Color accentTertiary = Color(0xFF5E5CE6);  // iOS Indigo
 
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFFB25B), Color(0xFFF97316)],
+    colors: [Color(0xFF0A84FF), Color(0xFF007AFF)],
   );
 
   static const LinearGradient auroraGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF22C7B8), Color(0xFF65CFF7)],
+    colors: [Color(0xFF30D158), Color(0xFF0A84FF)],
   );
 
-  static const Color statusSuccess = Color(0xFF34D399);
-  static const Color statusError = Color(0xFFF87171);
-  static const Color statusWarning = Color(0xFFFBBF24);
-  static const Color heartRed = Color(0xFFFF5D73);
-  static const Color separator = Color.fromRGBO(255, 255, 255, 0.08);
+  static const Color statusSuccess = Color(0xFF32D74B);
+  static const Color statusError = Color(0xFFFF453A);
+  static const Color statusWarning = Color(0xFFFF9F0A);
+  static const Color heartRed = Color(0xFFFF453A);
+  static const Color separator = Color.fromRGBO(255, 255, 255, 0.1);
 
   static const List<List<Color>> categoryGradients = [
-    [Color(0xFFF59E0B), Color(0xFFF97316)],
-    [Color(0xFF22C7B8), Color(0xFF0EA5E9)],
-    [Color(0xFFFB7185), Color(0xFFEF4444)],
-    [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-    [Color(0xFF22C55E), Color(0xFF2DD4BF)],
+    [Color(0xFF0A84FF), Color(0xFF007AFF)],
+    [Color(0xFF30D158), Color(0xFF28CD41)],
+    [Color(0xFFFF453A), Color(0xFFFF3B30)],
+    [Color(0xFF5E5CE6), Color(0xFF5856D6)],
+    [Color(0xFFFF9F0A), Color(0xFFFF9500)],
     [Color(0xFF64748B), Color(0xFF94A3B8)],
   ];
 }
@@ -54,13 +58,13 @@ class YYColors {
 class YYLightColors {
   YYLightColors._();
 
-  static const Color bgBase = Color(0xFFF3F5F8);
+  static const Color bgBase = Color(0xFFF2F2F7);
   static const Color bgElevated = Color(0xFFFFFFFF);
-  static const Color bgSurface = Color(0xFFEEF2F6);
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF516074);
-  static const Color textTertiary = Color(0xFF8A96A8);
-  static const Color separator = Color.fromRGBO(15, 23, 42, 0.06);
+  static const Color bgSurface = Color(0xFFE5E5EA);
+  static const Color textPrimary = Color(0xFF000000);
+  static const Color textSecondary = Color.fromRGBO(60, 60, 67, 0.6);
+  static const Color textTertiary = Color.fromRGBO(60, 60, 67, 0.3);
+  static const Color separator = Color.fromRGBO(60, 60, 67, 0.1);
 }
 
 class YYRadius {
@@ -73,10 +77,10 @@ class YYRadius {
   static const double xl = 26.0;
   static const double full = 999.0;
 
-  static const double coverLarge = 24.0;
-  static const double coverSmall = 10.0;
-  static const double card = 24.0;
-  static const double bottomSheet = 30.0;
+  static const double coverLarge = 12.0; // Per spec: 12px for now playing cover
+  static const double coverSmall = 6.0;  // Per spec: 6px for mini player cover
+  static const double card = 16.0;       // Per spec: 16px
+  static const double bottomSheet = 24.0; // Per spec: 24px
   static const double button = 999.0;
   static const double searchBar = 22.0;
 }
@@ -86,27 +90,27 @@ class YYShadows {
 
   static List<BoxShadow> get coverFloat => [
     const BoxShadow(
-      offset: Offset(0, 18),
-      blurRadius: 50,
-      color: Color.fromRGBO(0, 0, 0, 0.42),
+      offset: Offset(0, 16),
+      blurRadius: 32,
+      color: Color.fromRGBO(0, 0, 0, 0.5),
     ),
   ];
 
   static List<BoxShadow> get cardSubtle => [
     const BoxShadow(
-      offset: Offset(0, 20),
-      blurRadius: 45,
-      spreadRadius: -26,
-      color: Color.fromRGBO(0, 0, 0, 0.36),
+      offset: Offset(0, 8),
+      blurRadius: 24,
+      spreadRadius: -12,
+      color: Color.fromRGBO(0, 0, 0, 0.3),
     ),
   ];
 
   static List<BoxShadow> accentGlow(Color color) => [
     BoxShadow(
-      offset: const Offset(0, 14),
-      blurRadius: 34,
-      spreadRadius: -10,
-      color: color.withValues(alpha: 0.34),
+      offset: const Offset(0, 8),
+      blurRadius: 24,
+      spreadRadius: -8,
+      color: color.withValues(alpha: 0.3),
     ),
   ];
 }
@@ -114,20 +118,20 @@ class YYShadows {
 class YYBlur {
   YYBlur._();
 
-  static const double thick = 34.0;
-  static const double thin = 18.0;
-  static const double playerBg = 80.0;
+  static const double thick = 40.0; // Per spec: blur(40px)
+  static const double thin = 20.0;  // Per spec: blur(20px)
+  static const double playerBg = 100.0; // Per spec: sigma 100
 }
 
 class YYSizes {
   YYSizes._();
 
-  static const double miniPlayerHeight = 58.0;
+  static const double miniPlayerHeight = 64.0;
   static const double tabBarHeight = 58.0;
   static const double miniCoverSize = 40.0;
-  static const double playButtonLarge = 78.0;
-  static const double playButtonMedium = 34.0;
-  static const double progressBarHeight = 4.0;
+  static const double playButtonLarge = 64.0; // Per spec: 64x64
+  static const double playButtonMedium = 32.0; // Per spec: 32x32
+  static const double progressBarHeight = 2.0; // Per spec: 2px
   static const double songRowHeight = 72.0;
 }
 
@@ -147,12 +151,12 @@ class YYSeedPalette {
 
   static Color primary(String seed) {
     final hue = (seed.hashCode % 360).abs().toDouble();
-    return HSLColor.fromAHSL(1, hue, 0.80, 0.58).toColor();
+    return HSLColor.fromAHSL(1, hue, 0.85, 0.5).toColor();
   }
 
   static Color secondary(String seed) {
-    final hue = ((seed.hashCode % 360) + 38).abs().toDouble() % 360;
-    return HSLColor.fromAHSL(1, hue, 0.68, 0.52).toColor();
+    final hue = ((seed.hashCode % 360) + 40).abs().toDouble() % 360;
+    return HSLColor.fromAHSL(1, hue, 0.75, 0.45).toColor();
   }
 
   static LinearGradient gradient(String seed) {
@@ -165,7 +169,7 @@ class YYSeedPalette {
 
   static Color backdrop(String seed) {
     final hue = (seed.hashCode % 360).abs().toDouble();
-    return HSLColor.fromAHSL(1, hue, 0.56, 0.36).toColor();
+    return HSLColor.fromAHSL(1, hue, 0.6, 0.3).toColor();
   }
 }
 
@@ -226,7 +230,7 @@ class LiquidGlassTheme extends ThemeExtension<LiquidGlassTheme> {
   }
 }
 
-ThemeData buildPrimuseDarkTheme() {
+ThemeData buildYYDarkTheme() {
   final base = ThemeData.dark(useMaterial3: true);
 
   return base.copyWith(
@@ -283,7 +287,7 @@ ThemeData buildPrimuseDarkTheme() {
   );
 }
 
-ThemeData buildPrimuseLightTheme() {
+ThemeData buildYYLightTheme() {
   final base = ThemeData.light(useMaterial3: true);
 
   return base.copyWith(

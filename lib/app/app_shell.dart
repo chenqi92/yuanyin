@@ -109,16 +109,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                 Positioned.fill(
                   child: YYScenicBackground(child: widget.navigationShell),
                 ),
-                // iOS: 仅显示 mini player（tab bar 由原生 UITabBarController 渲染）
-                // 非 iOS: 显示 mini player + Flutter Material NavigationBar
+                // Bottom Area: Mini Player + Navigation
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
+                    duration: const Duration(milliseconds: 300),
+                    switchInCurve: Curves.easeOutQuart,
+                    switchOutCurve: Curves.easeInQuart,
                     transitionBuilder: (child, animation) {
                       return FadeTransition(
                         opacity: animation,
@@ -132,30 +131,23 @@ class _AppShellState extends ConsumerState<AppShell> {
                       );
                     },
                     child: showNavigation
-                        ? _ShellBottomArea(
+                        ? _UnifiedGlassDock(
                             key: const ValueKey('shell-navigation-visible'),
                             hasSong: hasSong,
                             isIOS: isIOS,
-                            child: isIOS
-                                // iOS: 不渲染 tab bar（原生 UITabBarController 管理）
-                                ? const SizedBox.shrink()
-                                // 非 iOS: 保留 Flutter Material NavigationBar
-                                : _BottomNavigation(
-                                    currentIndex:
-                                        widget.navigationShell.currentIndex,
-                                    onTap: (index) {
-                                      if (index == 3) {
-                                        context.push('/search');
-                                        return;
-                                      }
-                                      ShellNavigationVisibility.instance.reset();
-                                      widget.navigationShell.goBranch(
-                                        index,
-                                        initialLocation: index ==
-                                            widget.navigationShell.currentIndex,
-                                      );
-                                    },
-                                  ),
+                            currentIndex: widget.navigationShell.currentIndex,
+                            onTabTap: (index) {
+                              if (index == 3) {
+                                context.push('/search');
+                                return;
+                              }
+                              ShellNavigationVisibility.instance.reset();
+                              widget.navigationShell.goBranch(
+                                index,
+                                initialLocation: index ==
+                                    widget.navigationShell.currentIndex,
+                              );
+                            },
                           )
                         : const SizedBox.shrink(
                             key: ValueKey('shell-navigation-hidden'),
@@ -171,64 +163,67 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-class _ShellBottomArea extends StatelessWidget {
+class _UnifiedGlassDock extends StatelessWidget {
   final bool hasSong;
   final bool isIOS;
-  final Widget child;
+  final int currentIndex;
+  final ValueChanged<int> onTabTap;
 
-  const _ShellBottomArea({
+  const _UnifiedGlassDock({
     super.key,
     required this.hasSong,
     required this.isIOS,
-    required this.child,
+    required this.currentIndex,
+    required this.onTabTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (hasSong)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: _MiniPlayerDock(),
-          ),
-        child,
-      ],
-    );
-
+    // iOS: Only Mini Player is Flutter-side (Tab Bar is native)
     if (isIOS) {
-      return content;
+      if (!hasSong) return const SizedBox.shrink();
+      
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+        child: GlassContainer(
+          thick: true,
+          borderRadius: BorderRadius.circular(YYRadius.xl),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: const MiniPlayer(),
+        ),
+      );
     }
 
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      child: content,
-    );
-  }
-}
-
-class _MiniPlayerDock extends StatelessWidget {
-  const _MiniPlayerDock();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.yyBgElevated.withValues(
-          alpha: context.isDark ? 0.96 : 0.99,
+    // Non-iOS: Unified Mini Player + Bottom Nav
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+      child: GlassContainer(
+        thick: true,
+        borderRadius: BorderRadius.circular(YYRadius.xl),
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasSong) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: MiniPlayer(),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(
+                  height: 1,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+            ],
+            _BottomNavigation(
+              currentIndex: currentIndex,
+              onTap: onTabTap,
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(YYRadius.lg),
-        border: Border.all(
-          color: context.isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
-        boxShadow: YYShadows.cardSubtle,
       ),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: const MiniPlayer(),
     );
   }
 }
@@ -272,31 +267,10 @@ class _BottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-    final nav = YYAdaptiveTabBar(
+    return YYAdaptiveTabBar(
       destinations: _tabs,
       currentIndex: currentIndex,
       onTap: onTap,
-    );
-
-    if (isIOS) {
-      return nav;
-    }
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.yyBgElevated.withValues(
-          alpha: context.isDark ? 0.98 : 0.99,
-        ),
-        borderRadius: BorderRadius.circular(YYRadius.xl),
-        border: Border.all(
-          color: context.isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
-        boxShadow: YYShadows.cardSubtle,
-      ),
-      child: nav,
     );
   }
 }
