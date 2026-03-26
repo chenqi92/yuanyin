@@ -304,25 +304,20 @@ class _ManualMusicScraperPageState extends ConsumerState<ManualMusicScraperPage>
   }
 
   Future<void> _syncMetadataToDatabase() async {
-    final sourceId = widget.music.sourceId;
-    if (sourceId == null || _selectedDetail == null) return;
+    if (_selectedDetail == null) return;
     try {
       final db = MusicDatabaseService();
-      await db.init();
-      final existing = await db.get(sourceId, widget.music.filePath ?? '');
-      if (existing != null) {
-        await db.upsert(existing.copyWith(
-          title: (existing.title == null || existing.title!.isEmpty) ? _selectedDetail?.title : existing.title,
-          artist: (existing.artist == null || existing.artist!.isEmpty) ? _selectedDetail?.artist : existing.artist,
-          album: (existing.album == null || existing.album!.isEmpty) ? _selectedDetail?.album : existing.album,
-          year: existing.year ?? _selectedDetail?.year,
-          trackNumber: existing.trackNumber ?? _selectedDetail?.trackNumber,
-          genre: (existing.genre == null || existing.genre!.isEmpty)
-              ? _selectedDetail?.genres?.join(', ')
-              : existing.genre,
-          lastUpdated: DateTime.now(),
-        ));
-      }
+      final updated = widget.music.copyWith(
+        title: widget.music.title.isEmpty ? _selectedDetail?.title : null,
+        artist: widget.music.artist.isEmpty ? _selectedDetail?.artist : null,
+        album: widget.music.album.isEmpty ? _selectedDetail?.album : null,
+        year: widget.music.year ?? _selectedDetail?.year,
+        trackNumber: widget.music.trackNumber ?? _selectedDetail?.trackNumber,
+        genre: (widget.music.genre == null || widget.music.genre!.isEmpty)
+            ? _selectedDetail?.genres?.join(', ')
+            : null,
+      );
+      await db.updateSong(updated);
     } on Exception catch (_) {}
   }
 
@@ -638,9 +633,9 @@ class _ManualMusicScraperPageState extends ConsumerState<ManualMusicScraperPage>
                     child: _selectedCover?.coverUrl != null
                         ? ClipRRect(borderRadius: BorderRadius.circular(8),
                             child: Image.network(_selectedCover!.coverUrl, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(CupertinoIcons.music_album,
+                              errorBuilder: (_, __, ___) => Icon(CupertinoIcons.music_note,
                                 color: _selectedItem?.source.themeColor)))
-                        : Icon(CupertinoIcons.music_album, color: _selectedItem?.source.themeColor),
+                        : Icon(CupertinoIcons.music_note, color: _selectedItem?.source.themeColor),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

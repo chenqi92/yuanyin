@@ -197,8 +197,8 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                     ),
                                     YYPillButton(
                                       label: '自动刮削',
-                                      icon: CupertinoIcons.wand_and_stars,
-                                      onTap: () => showAutoScrapeDialog(
+                                      icon: CupertinoIcons.sparkles,
+                                      onTap: () => AutoScrapeDialog.show(
                                         context,
                                         song,
                                       ),
@@ -210,7 +210,7 @@ class _NowPlayingPageState extends ConsumerState<NowPlayingPage> {
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => ManualMusicScraperPage(
-                                            musicItem: song,
+                                            music: song,
                                           ),
                                         ),
                                       ),

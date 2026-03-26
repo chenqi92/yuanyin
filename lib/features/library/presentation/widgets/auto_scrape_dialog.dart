@@ -16,7 +16,7 @@ import '../../data/services/music_database_service.dart';
 import '../../domain/entities/music_scraper_result.dart';
 import '../../domain/entities/scraper_source_entity.dart';
 import '../../presentation/providers/music_scraper_provider.dart';
-import 'manual_music_scraper_page.dart';
+import '../pages/manual_music_scraper_page.dart';
 
 /// 自动刮削对话框
 ///
@@ -217,25 +217,20 @@ class _AutoScrapeDialogState extends ConsumerState<AutoScrapeDialog> {
   }
 
   Future<void> _syncMetadataToDatabase(Uint8List? coverData) async {
-    final sourceId = widget.music.sourceId;
-    if (sourceId == null || _detail == null) return;
+    if (_detail == null) return;
     try {
       final db = MusicDatabaseService();
-      await db.init();
-      final existing = await db.get(sourceId, widget.music.filePath ?? '');
-      if (existing != null) {
-        await db.upsert(existing.copyWith(
-          title: (existing.title == null || existing.title!.isEmpty) ? _detail?.title : existing.title,
-          artist: (existing.artist == null || existing.artist!.isEmpty) ? _detail?.artist : existing.artist,
-          album: (existing.album == null || existing.album!.isEmpty) ? _detail?.album : existing.album,
-          year: existing.year ?? _detail?.year,
-          trackNumber: existing.trackNumber ?? _detail?.trackNumber,
-          genre: (existing.genre == null || existing.genre!.isEmpty)
-              ? _detail?.genres?.join(', ')
-              : existing.genre,
-          lastUpdated: DateTime.now(),
-        ));
-      }
+      final updated = widget.music.copyWith(
+        title: widget.music.title.isEmpty ? _detail?.title : null,
+        artist: widget.music.artist.isEmpty ? _detail?.artist : null,
+        album: widget.music.album.isEmpty ? _detail?.album : null,
+        year: widget.music.year ?? _detail?.year,
+        trackNumber: widget.music.trackNumber ?? _detail?.trackNumber,
+        genre: (widget.music.genre == null || widget.music.genre!.isEmpty)
+            ? _detail?.genres?.join(', ')
+            : null,
+      );
+      await db.updateSong(updated);
     } on Exception catch (_) {}
   }
 
