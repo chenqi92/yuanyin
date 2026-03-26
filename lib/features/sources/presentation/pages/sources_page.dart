@@ -1969,26 +1969,29 @@ class _FormField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(color: context.yyTextSecondary, fontSize: 13)),
-      const SizedBox(height: 6),
-      Container(
-        decoration: BoxDecoration(
-          color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06))),
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 10),
+        child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+      ),
+      YYPanel(
+        padding: EdgeInsets.zero,
         child: TextField(
-          controller: ctrl, obscureText: obscure,
+          controller: ctrl,
+          obscureText: obscure,
           keyboardType: keyboardType,
           focusNode: focusNode,
           textInputAction: textInputAction,
           onSubmitted: onSubmitted,
-          style: TextStyle(color: context.yyTextPrimary, fontSize: 15),
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
-            hintText: hint, hintStyle: TextStyle(color: context.yyTextTertiary.withValues(alpha: 0.5)),
-            prefixIcon: Icon(icon, color: context.yyTextTertiary, size: 18),
-            suffixIcon: suffix != null ? Padding(padding: const EdgeInsets.all(12), child: suffix) : null,
+            hintText: hint,
+            hintStyle: const TextStyle(color: Colors.white12),
+            prefixIcon: Icon(icon, color: YYColors.accentPrimary.withValues(alpha: 0.5), size: 20),
+            suffixIcon: suffix,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14))),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
       ),
     ]);
   }

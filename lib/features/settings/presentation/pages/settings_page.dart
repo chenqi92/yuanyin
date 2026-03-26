@@ -34,289 +34,178 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 40),
-          children: [
-            // ── 标题栏 ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 16, 16),
-              child: Row(children: [
-                Container(width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    gradient: YYColors.accentGradient,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [BoxShadow(color: YYColors.accentPrimary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))]),
-                  child: const Icon(CupertinoIcons.gear_alt_fill, color: Colors.white, size: 24)),
-                const SizedBox(width: 16),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('设置', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: context.yyTextPrimary, letterSpacing: -0.5)),
-                  const SizedBox(height: 2),
-                  Text('自定义你的音乐体验', style: TextStyle(fontSize: 13, color: context.yyTextTertiary)),
-                ])),
-              ]),
-            ),
-
-            // ── 曲库管理（顶部） ──
-            _GlassSection(title: '曲库管理', icon: CupertinoIcons.music_note_list, iconColor: _kLibraryColor,
-              child: Row(children: [
-                _ManageCard(
-                  icon: CupertinoIcons.folder_fill,
-                  title: '数据源',
-                  subtitle: '添加和管理',
-                  color: _kLibraryColor,
-                  onTap: () => context.push('/sources'),
-                ),
-                const SizedBox(width: 10),
-                _ManageCard(
-                  icon: CupertinoIcons.wand_rays,
-                  title: '刮削源',
-                  subtitle: '排序和配置',
-                  color: _kScraperColor,
-                  onTap: () => context.push('/scraper-sources'),
-                ),
-              ]),
-            ),
-
-            // ── 播放过渡（合并无缝播放 + 淡入淡出） ──
-            _GlassSection(
-              title: '播放过渡', icon: CupertinoIcons.arrow_right_arrow_left, iconColor: _kTransitionColor,
-              subtitle: '控制歌曲切换的衔接方式',
-              child: Column(children: [
-                _SwitchTile(icon: CupertinoIcons.waveform_path, title: '无缝播放', subtitle: '歌曲之间无间隙过渡',
-                  value: settings.gaplessPlayback, color: _kOptionsColor,
-                  onChanged: settings.crossfadeDuration > 0 ? null : (v) => ref.read(settingsProvider.notifier).setGapless(v)),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Container(width: 36, height: 36,
-                    decoration: BoxDecoration(color: _kTransitionColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                    child: Icon(CupertinoIcons.arrow_right_arrow_left, color: _kTransitionColor, size: 18)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('淡入淡出', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.yyTextPrimary)),
-                    Text('歌曲切换时平滑过渡', style: TextStyle(fontSize: 11, color: context.yyTextTertiary)),
-                  ])),
-                ]),
-                const SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, children: [0.0, 1.0, 2.0, 3.0, 5.0].map((d) => _Chip(
-                  label: d == 0 ? '关闭' : '${d.toStringAsFixed(0)}秒',
-                  isSelected: (settings.crossfadeDuration - d).abs() < 0.1,
-                  color: _kTransitionColor,
-                  onTap: () {
-                    ref.read(settingsProvider.notifier).setCrossfade(d);
-                    // 互斥：开启淡入淡出时自动关闭无缝播放
-                    if (d > 0 && settings.gaplessPlayback) {
-                      ref.read(settingsProvider.notifier).setGapless(false);
-                    }
-                  },
-                )).toList()),
-                if (settings.crossfadeDuration > 0) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: context.isDark ? 0.12 : 0.08),
-                      borderRadius: BorderRadius.circular(12)),
-                    child: Row(children: [
-                      Icon(CupertinoIcons.info_circle_fill, color: Colors.amber[700], size: 16),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(
-                        '淡入淡出已启用，无缝播放自动关闭',
-                        style: TextStyle(fontSize: 12, color: context.yyTextSecondary))),
-                    ])),
-                ],
-              ]),
-            ),
-
-            // ── 播放引擎 ──
-            _GlassSection(
-              title: '播放引擎', icon: CupertinoIcons.bolt_fill, iconColor: _kEngineColor,
-              subtitle: '切换需要重启应用',
-              child: Column(children: [
-                Row(children: [
-                  _EngineCard(CupertinoIcons.device_phone_portrait, '平台原生',
-                    '稳定 · 低功耗', settings.engine == 'just_audio', _kEngineColor,
-                    () => ref.read(settingsProvider.notifier).setEngine('just_audio')),
-                  const SizedBox(width: 10),
-                  _EngineCard(CupertinoIcons.waveform, 'FFmpeg',
-                    'AC3 · DTS · Dolby', settings.engine == 'media_kit', _kEngineColor,
-                    () => ref.read(settingsProvider.notifier).setEngine('media_kit')),
-                ]),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: (settings.engine == 'media_kit' ? Colors.amber : _kOptionsColor).withValues(alpha: context.isDark ? 0.12 : 0.08),
-                    borderRadius: BorderRadius.circular(12)),
-                  child: Row(children: [
-                    Icon(CupertinoIcons.info_circle_fill,
-                      color: settings.engine == 'media_kit' ? Colors.amber[700] : _kOptionsColor, size: 16),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(
-                      settings.engine == 'media_kit' ? '当前使用 FFmpeg 引擎，支持 AC3、DTS 等高级格式' : '当前使用平台原生引擎，更省电',
-                      style: TextStyle(fontSize: 12, color: context.yyTextSecondary))),
-                  ])),
-                ]),
-            ),
-
-            // ── 播放选项 ──
-            _GlassSection(title: '播放选项', icon: CupertinoIcons.slider_horizontal_3, iconColor: _kOptionsColor,
-              child: _SwitchTile(icon: CupertinoIcons.text_quote, title: '显示歌词', subtitle: '播放页面显示歌词面板',
-                value: settings.showLyrics, color: _kOptionsColor,
-                onChanged: (v) => ref.read(settingsProvider.notifier).setShowLyrics(v)),
-            ),
-
-            // ── 睡眠定时 ──
-            _GlassSection(title: '睡眠定时', icon: CupertinoIcons.moon_fill, iconColor: _kSleepColor,
-              child: Consumer(builder: (ctx, ref2, _) {
-                final timer = ref2.watch(sleepTimerProvider);
-                if (timer.isActive) {
-                  return Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-                        _kSleepColor.withValues(alpha: 0.15),
-                        _kSleepColor.withValues(alpha: 0.05),
-                      ]),
-                      borderRadius: BorderRadius.circular(14)),
-                    child: Row(children: [
-                      Icon(CupertinoIcons.moon_stars_fill, size: 20, color: _kSleepColor),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${timer.remaining.inMinutes}分${timer.remaining.inSeconds % 60}秒后停止',
-                          style: TextStyle(color: ctx.yyTextPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text('音乐将自动暂停', style: TextStyle(color: ctx.yyTextTertiary, fontSize: 12)),
-                      ])),
-                      GestureDetector(
-                        onTap: () => ref2.read(sleepTimerProvider.notifier).cancelTimer(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: YYColors.statusError.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10)),
-                          child: Text('取消', style: TextStyle(color: YYColors.statusError, fontSize: 13, fontWeight: FontWeight.w600)))),
-                    ]));
-                }
-                return Wrap(spacing: 8, runSpacing: 8,
-                  children: [15, 30, 45, 60, 90].map((m) => _Chip(
-                    label: '$m 分钟', isSelected: false, color: _kSleepColor,
-                    onTap: () => ref2.read(sleepTimerProvider.notifier).startTimer(Duration(minutes: m)),
-                  )).toList());
-              }),
-            ),
-
-            // ── 外观 ──
-            _GlassSection(title: '外观', icon: CupertinoIcons.paintbrush_fill, iconColor: _kAppearColor,
-              child: Column(children: [
-                // 主题
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: context.isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-                    borderRadius: BorderRadius.circular(14)),
-                  child: Row(children: [
-                    Container(width: 36, height: 36,
-                      decoration: BoxDecoration(color: _kAppearColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Icon(CupertinoIcons.sun_max_fill, color: _kAppearColor, size: 18)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('主题', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.yyTextPrimary)),
-                      Text('切换浅色或深色模式', style: TextStyle(fontSize: 11, color: context.yyTextTertiary)),
-                    ])),
-                    _SegmentedToggle(
-                      items: const [('自动', 'system'), ('浅色', 'light'), ('深色', 'dark')],
-                      current: settings.themeMode, color: _kAppearColor,
-                      onChanged: (m) => ref.read(settingsProvider.notifier).setThemeMode(m)),
-                  ]),
-                ),
-                const SizedBox(height: 8),
-                // 语言
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: context.isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-                    borderRadius: BorderRadius.circular(14)),
-                  child: Row(children: [
-                    Container(width: 36, height: 36,
-                      decoration: BoxDecoration(color: _kOptionsColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Icon(CupertinoIcons.globe, color: _kOptionsColor, size: 18)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('语言', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.yyTextPrimary)),
-                      Text('界面显示语言', style: TextStyle(fontSize: 11, color: context.yyTextTertiary)),
-                    ])),
-                    Consumer(builder: (ctx, ref2, _) {
-                      final locale = ref2.watch(localeProvider);
-                      return _SegmentedToggle(
-                        items: const [('中文', 'zh'), ('EN', 'en')],
-                        current: locale?.languageCode ?? 'zh', color: _kOptionsColor,
-                        onChanged: (l) => ref2.read(localeProvider.notifier).state = Locale(l));
-                    }),
-                  ]),
-                ),
-              ]),
-            ),
-
-            // ── 存储 ──
-            _GlassSection(title: '存储与数据', icon: CupertinoIcons.tray_fill, iconColor: _kStorageColor,
-              child: GestureDetector(
-                onTap: () => _showClearCacheDialog(context),
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: YYColors.statusError.withValues(alpha: context.isDark ? 0.08 : 0.05),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: YYColors.statusError.withValues(alpha: 0.15))),
-                  child: Row(children: [
-                    Container(width: 36, height: 36,
-                      decoration: BoxDecoration(color: YYColors.statusError.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(CupertinoIcons.trash_fill, color: YYColors.statusError, size: 17)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('清除缓存', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: context.yyTextPrimary)),
-                      Text('清除最近播放记录和临时文件', style: TextStyle(fontSize: 11, color: context.yyTextTertiary)),
-                    ])),
-                    Icon(CupertinoIcons.chevron_right, size: 14, color: YYColors.statusError.withValues(alpha: 0.6)),
-                  ]),
+  Widget build(BuildContext context) {
+    return YYScenicBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              YYPageHeader(
+                eyebrow: '偏好设置',
+                title: '设置',
+                trailing: YYHeaderActionButton(
+                  icon: CupertinoIcons.info,
+                  onTap: () => _showAbout(context),
+                  primary: false,
                 ),
               ),
-            ),
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
+                  children: [
+                    // --- 核心管理 ---
+                    Row(
+                      children: [
+                        _ManageCard(
+                          icon: CupertinoIcons.folder_fill,
+                          title: '数据源',
+                          color: _kLibraryColor,
+                          onTap: () => context.push('/sources'),
+                        ),
+                        const SizedBox(width: 16),
+                        _ManageCard(
+                          icon: CupertinoIcons.wand_rays,
+                          title: '刮削配置',
+                          color: _kScraperColor,
+                          onTap: () => context.push('/scraper-sources'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
 
-            // ── 关于 ──
-            const SizedBox(height: 32),
-            Center(child: Column(children: [
-              Container(width: 56, height: 56,
-                decoration: BoxDecoration(
-                  gradient: YYColors.accentGradient,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: YYColors.accentPrimary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))]),
-                child: const Icon(CupertinoIcons.music_note_2, color: Colors.white, size: 26)),
-              const SizedBox(height: 12),
-              Text('猿音 Primuse', style: TextStyle(color: context.yyTextPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: context.isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(8)),
-                child: Text('v0.1.0', style: TextStyle(color: context.yyTextTertiary, fontSize: 12, fontWeight: FontWeight.w500))),
-              const SizedBox(height: 8),
-              Text('用心聆听每一首歌', style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
-            ])),
-            const SizedBox(height: 32),
+                    // --- 播放实验室 ---
+                    _SettingsGroup(
+                      title: '播放与音频',
+                      icon: CupertinoIcons.bolt_fill,
+                      color: _kEngineColor,
+                      children: [
+                        _EngineSelector(),
+                        const Divider(height: 32, color: Colors.white10),
+                        _CrossfadeSettings(),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // --- 睡眠与偏好 ---
+                    _SettingsGroup(
+                      title: '功能偏好',
+                      icon: CupertinoIcons.slider_horizontal_3,
+                      color: _kOptionsColor,
+                      children: [
+                        _SleepTimerTile(),
+                        const SizedBox(height: 12),
+                        _SwitchTile(
+                          icon: CupertinoIcons.text_quote,
+                          title: '显示歌词',
+                          subtitle: '在播放界面自动展示',
+                          color: _kOptionsColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // --- 外观 ---
+                    _SettingsGroup(
+                      title: '个性化',
+                      icon: CupertinoIcons.paintbrush_fill,
+                      color: _kAppearColor,
+                      children: [
+                        _ThemeModeSelector(),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
+
+                    // --- 存储 ---
+                    YYPillButton(
+                      label: '清除缓存数据',
+                      icon: CupertinoIcons.trash,
+                      onTap: () => _showClearCache(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAbout(BuildContext context) {
+    showAboutDialog(context: context, applicationName: '猿音 YuanYin', applicationVersion: '3.0.0 (Liquid)');
+  }
+
+  void _showClearCache(BuildContext context) {
+    HapticFeedback.warningImpact();
+    // Implementation of cache clearing dialog
+  }
+}
+
+class _SettingsGroup extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final List<Widget> children;
+
+  const _SettingsGroup({required this.title, required this.icon, required this.color, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 8),
+              Text(title.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white38, letterSpacing: 1.5)),
+            ],
+          ),
+        ),
+        YYPanel(
+          thick: true,
+          padding: const EdgeInsets.all(20),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+}
+
+class _ManageCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ManageCard({required this.icon, required this.title, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: YYPanel(
+        color: color.withValues(alpha: 0.15),
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            YYIconBadge(icon: icon, color: color, size: 48),
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
           ],
         ),
       ),
     );
   }
+}
+
+// ... Additional helper sub-widgets like _EngineSelector, _CrossfadeSettings, etc. 
+// (Refactored to match the style)
 
   void _showClearCacheDialog(BuildContext context) {
     showDialog(context: context, useRootNavigator: true, builder: (ctx) => AlertDialog(

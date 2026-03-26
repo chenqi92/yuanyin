@@ -36,11 +36,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void initState() {
     super.initState();
     _loadHistory();
-    // 自动聚焦搜索框
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
-    // 隐藏 native tab bar（搜索页全屏）
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
     NativeTabBarService.instance.setTabBarVisible(false);
   }
 
@@ -49,7 +45,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _debounce?.cancel();
     _controller.dispose();
     _focusNode.dispose();
-    // 恢复 native tab bar
     NativeTabBarService.instance.setTabBarVisible(true);
     super.dispose();
   }
@@ -61,331 +56,147 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   Future<void> _doSearch(String value) async {
     _debounce?.cancel();
-    setState(() {
-      _query = value;
-      _searching = true;
-    });
-
+    setState(() { _query = value; _searching = true; });
     if (value.trim().isEmpty) {
-      setState(() {
-        _results = [];
-        _searching = false;
-      });
+      setState(() { _results = []; _searching = false; });
       return;
     }
-
     ref.read(searchHistoryProvider).addSearch(value);
     _loadHistory();
-
     final db = ref.read(musicDatabaseProvider);
     final results = await db.search(value);
-
-    if (mounted) {
-      setState(() {
-        _results = results;
-        _searching = false;
-      });
-    }
+    if (mounted) setState(() { _results = results; _searching = false; });
   }
 
-  void _scheduleSearch(String value) {
-    _debounce?.cancel();
-    _debounce =
-        Timer(const Duration(milliseconds: 220), () => _doSearch(value));
-  }
+  void _scheduleSearch(String value) => _doSearch(value);
 
   void _applyQuery(String value) {
-    _controller.value = TextEditingValue(
-      text: value,
-      selection: TextSelection.collapsed(offset: value.length),
-    );
+    _controller.text = value;
     _doSearch(value);
-  }
-
-  Future<void> _clearHistory() async {
-    await ref.read(searchHistoryProvider).clearAll();
-    if (mounted) setState(() => _history = []);
-  }
-
-  void _dismiss() {
-    _focusNode.unfocus();
-    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final player = ref.watch(playerProvider);
-    final isDark = context.isDark;
 
-    return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0A0A0A) : CupertinoColors.systemGroupedBackground.resolveFrom(context),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // — 搜索栏（iOS 原生风格）
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoSearchTextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      placeholder: '搜索歌曲、艺术家、专辑',
-                      onChanged: _scheduleSearch,
-                      onSuffixTap: () {
-                        _controller.clear();
-                        _doSearch('');
-                      },
-                      style: TextStyle(
-                        color: context.yyTextPrimary,
-                        fontSize: 17,
+    return YYScenicBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: YYPanel(
+                        padding: EdgeInsets.zero,
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          onChanged: _scheduleSearch,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: '搜索歌曲、艺人、专辑',
+                            hintStyle: const TextStyle(color: Colors.white24),
+                            prefixIcon: const Icon(CupertinoIcons.search, color: Colors.white38, size: 20),
+                            suffixIcon: _query.isNotEmpty ? IconButton(icon: const Icon(CupertinoIcons.clear_circled_solid, size: 18, color: Colors.white24), onPressed: () { _controller.clear(); _doSearch(''); }) : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minSize: 0,
-                    onPressed: _dismiss,
-                    child: Text(
-                      '取消',
-                      style: TextStyle(
-                        color: YYColors.accentPrimary,
-                        fontSize: 17,
-                      ),
+                    const SizedBox(width: 12),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => context.pop(),
+                      child: const Text('取消', style: TextStyle(color: YYColors.accentPrimary, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 8),
-
-            // — 内容区
-            Expanded(
-              child: _query.isEmpty
-                  ? _buildIdleState(context)
+              Expanded(
+                child: _query.isEmpty 
+                  ? _buildIdleState(context) 
                   : _buildResults(context, player),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// 空状态：搜索历史
   Widget _buildIdleState(BuildContext context) {
     if (_history.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              CupertinoIcons.search,
-              size: 48,
-              color: context.yyTextTertiary.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '搜索你的曲库',
-              style: TextStyle(
-                color: context.yyTextSecondary,
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '输入歌曲名、艺术家或专辑',
-              style: TextStyle(
-                color: context.yyTextTertiary,
-                fontSize: 15,
-              ),
-            ),
+            const YYIconBadge(icon: CupertinoIcons.search, color: Colors.white10, size: 64),
+            const SizedBox(height: 24),
+            Text('开始探索', style: context.yyTextTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text('输入你想听的内容', style: TextStyle(color: context.yyTextSecondary)),
           ],
         ),
-      );
+      ).animate().fadeIn();
     }
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '最近搜索',
-                  style: TextStyle(
-                    color: context.yyTextPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              CupertinoButton(
-                padding: EdgeInsets.zero,
-                minSize: 0,
-                onPressed: _clearHistory,
-                child: Text(
-                  '清除',
-                  style: TextStyle(
-                    color: YYColors.accentPrimary,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        YYSectionTitle(
+          title: '最近搜索',
+          trailing: IconButton(icon: const Icon(CupertinoIcons.trash, size: 18, color: Colors.white24), onPressed: () => ref.read(searchHistoryProvider).clearAll().then((_) => _loadHistory())),
         ),
-        ..._history.map(
-          (item) => CupertinoButton(
-            padding: EdgeInsets.zero,
-            minSize: 0,
-            onPressed: () => _applyQuery(item),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom:
-                      BorderSide(color: context.yySeparator, width: 0.5),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(CupertinoIcons.clock,
-                      size: 18, color: context.yyTextTertiary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      item,
-                      style: TextStyle(
-                        color: context.yyTextPrimary,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                  Icon(CupertinoIcons.arrow_up_left,
-                      size: 14, color: context.yyTextTertiary),
-                ],
-              ),
-            ),
-          ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _history.map((h) => YYPillButton(label: h, onTap: () => _applyQuery(h), compact: true)).toList(),
         ),
       ],
     );
   }
 
-  /// 搜索结果
   Widget _buildResults(BuildContext context, PlayerState player) {
-    if (_searching) {
-      return const Center(
-        child: CupertinoActivityIndicator(radius: 14),
-      );
-    }
-
+    if (_searching) return const Center(child: CupertinoActivityIndicator(color: YYColors.accentPrimary));
+    
     if (_results.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              CupertinoIcons.search,
-              size: 40,
-              color: context.yyTextTertiary.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '没有找到 "$_query"',
-              style: TextStyle(
-                color: context.yyTextSecondary,
-                fontSize: 17,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '试试其他关键词',
-              style: TextStyle(
-                color: context.yyTextTertiary,
-                fontSize: 15,
-              ),
-            ),
+            const Icon(CupertinoIcons.nosign, color: Colors.white12, size: 48),
+            const SizedBox(height: 16),
+            Text('未找到相关结果', style: TextStyle(color: context.yyTextSecondary)),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 100),
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final song = _results[index];
-        final isActive = player.currentSong?.id == song.id;
-        return CupertinoListTile(
-          leading: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                HSLColor.fromAHSL(
-                        1.0,
-                        (song.title.hashCode % 360).toDouble(),
-                        0.5,
-                        0.4)
-                    .toColor(),
-                HSLColor.fromAHSL(
-                        1.0,
-                        ((song.title.hashCode + 40) % 360).toDouble(),
-                        0.4,
-                        0.3)
-                    .toColor(),
-              ]),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: isActive
-                ? const Icon(CupertinoIcons.waveform,
-                    color: Colors.white, size: 18)
-                : const Icon(CupertinoIcons.music_note,
-                    color: Colors.white, size: 18),
-          ),
-          title: Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isActive
-                  ? YYColors.accentPrimary
-                  : context.yyTextPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          subtitle: Text(
-            '${song.artist} · ${song.album}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: context.yyTextTertiary,
-              fontSize: 15,
-            ),
-          ),
-          onTap: () =>
-              ref.read(playerProvider.notifier).playSong(song, queue: _results),
-          additionalInfo: GestureDetector(
-            onTap: () => showSongActions(context, ref, song),
-            child: Icon(
-              CupertinoIcons.ellipsis,
-              size: 20,
-              color: context.yyTextTertiary,
-            ),
-          ),
-        );
+        return YYTrackRow(
+          song: song,
+          active: player.currentSong?.id == song.id,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            ref.read(playerProvider.notifier).playSong(song, queue: _results);
+          },
+          onLongPress: () => showSongActions(context, ref, song),
+        ).animate().fadeIn(delay: (20 * index).ms).slideX(begin: 0.05);
       },
     );
   }
 }
+
