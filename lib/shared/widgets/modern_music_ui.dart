@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/theme/theme.dart';
@@ -21,8 +22,6 @@ class YYScenicBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = context.yyBgBase;
-    final glow = accent ?? YYColors.accentPrimary;
-    final isDark = context.isDark;
 
     return Stack(
       children: [
@@ -34,48 +33,40 @@ class YYScenicBackground extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [
                   base,
-                  Color.alphaBlend(Colors.black.withValues(alpha: 0.08), base),
+                  yyMix(base, const Color(0xFF18181B), 0.60),
+                  const Color(0xFF040506),
                 ],
+                stops: const [0, 0.42, 1],
               ),
             ),
-          ),
-        ),
-        Positioned(
-          top: -96,
-          right: accentAlignment.x >= 0 ? -70 : null,
-          left: accentAlignment.x < 0 ? -70 : null,
-          child: _GlowOrb(
-            size: 132,
-            colors: [
-              glow.withValues(alpha: isDark ? 0.08 : 0.05),
-              YYColors.accentSecondary.withValues(alpha: isDark ? 0.03 : 0.015),
-              Colors.transparent,
-            ],
-          ),
-        ),
-        Positioned(
-          bottom: -96,
-          left: -40,
-          child: _GlowOrb(
-            size: 120,
-            colors: [
-              YYColors.accentSecondary.withValues(alpha: isDark ? 0.05 : 0.02),
-              YYColors.accentTertiary.withValues(alpha: isDark ? 0.03 : 0.015),
-              Colors.transparent,
-            ],
           ),
         ),
         Positioned.fill(
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.92),
+                  radius: 1.05,
                   colors: [
-                    Colors.white.withValues(alpha: 0.03),
+                    const Color(0xFF3A2144).withValues(alpha: 0.14),
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.10),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, 1.08),
+                  radius: 1.18,
+                  colors: [
+                    const Color(0xFF05303A).withValues(alpha: 0.10),
+                    Colors.transparent,
                   ],
                 ),
               ),
@@ -84,30 +75,6 @@ class YYScenicBackground extends StatelessWidget {
         ),
         child,
       ],
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  final double size;
-  final List<Color> colors;
-
-  const _GlowOrb({required this.size, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(colors: colors),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -136,71 +103,105 @@ class YYPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = context.isDark;
     final panelDecoration = BoxDecoration(
+      color:
+          color ?? context.yyBgElevated.withValues(alpha: isDark ? 0.92 : 0.96),
       gradient: gradient,
-      color: gradient == null
-          ? color ??
-                context.yyBgElevated.withValues(alpha: isDark ? 0.94 : 0.985)
-          : null,
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
         color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        width: 1,
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.05),
+        width: 0.7,
       ),
-      boxShadow: [
-        BoxShadow(
-          offset: Offset(0, isDark ? 18 : 12),
-          blurRadius: isDark ? 34 : 24,
-          spreadRadius: isDark ? -24 : -18,
-          color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.08),
-        ),
-      ],
     );
 
-    final panelBody = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: isDark ? 0.02 : 0.16),
-            Colors.transparent,
-          ],
+    final panelBody = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: panelDecoration,
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(16),
+            child: child,
+          ),
         ),
-      ),
-      child: Padding(
-        padding: padding ?? const EdgeInsets.all(16),
-        child: child,
       ),
     );
 
     if (onTap == null) {
-      return Container(
-        margin: margin,
-        decoration: panelDecoration,
-        child: panelBody,
-      );
+      return Container(margin: margin, child: panelBody);
     }
 
     return Container(
       margin: margin,
       child: Material(
         color: Colors.transparent,
-        child: Ink(
-          decoration: panelDecoration,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(radius),
-            overlayColor: WidgetStatePropertyAll(
-              Colors.white.withValues(alpha: isDark ? 0.05 : 0.03),
-            ),
-            child: panelBody,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(radius),
+          overlayColor: WidgetStatePropertyAll(
+            Colors.white.withValues(alpha: isDark ? 0.05 : 0.03),
           ),
+          child: panelBody,
         ),
       ),
     );
+  }
+}
+
+class YYLiquidGlass extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  final double radius;
+  final bool thin;
+  final double? blurSigma;
+  final Color? color;
+
+  const YYLiquidGlass({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(12),
+    this.margin,
+    this.radius = YYRadius.xl,
+    this.thin = false,
+    this.blurSigma,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final glass =
+        Theme.of(context).extension<LiquidGlassTheme>() ??
+        (context.isDark ? LiquidGlassTheme.dark : LiquidGlassTheme.light);
+    final fill = color ?? (thin ? glass.glassThin : glass.glassThick);
+
+    final surface = CupertinoTheme(
+      data: CupertinoThemeData(
+        brightness: context.isDark ? Brightness.dark : Brightness.light,
+      ),
+      child: CupertinoPopupSurface(
+        blurSigma: blurSigma ?? (thin ? glass.blurThin : glass.blurThick),
+        isSurfacePainted: false,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(
+              color: Colors.white.withValues(
+                alpha: context.isDark ? 0.10 : 0.18,
+              ),
+              width: 0.8,
+            ),
+          ),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+
+    if (margin == null) return surface;
+    return Padding(padding: margin!, child: surface);
   }
 }
 
@@ -230,25 +231,13 @@ class YYHeaderActionButton extends StatelessWidget {
             ? Colors.white.withValues(alpha: 0.06)
             : Colors.black.withValues(alpha: 0.05),
       ),
-      boxShadow: primary
-          ? [
-              BoxShadow(
-                offset: const Offset(0, 10),
-                blurRadius: 20,
-                spreadRadius: -12,
-                color: YYColors.accentPrimary.withValues(
-                  alpha: isDark ? 0.30 : 0.18,
-                ),
-              ),
-            ]
-          : null,
     );
 
     return Material(
       color: Colors.transparent,
       child: Ink(
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         decoration: decoration,
         child: InkWell(
           onTap: onTap,
@@ -269,6 +258,7 @@ class YYHeaderActionButton extends StatelessWidget {
   }
 }
 
+/// iOS Large Title style page header.
 class YYPageHeader extends StatelessWidget {
   final String eyebrow;
   final String title;
@@ -295,21 +285,33 @@ class YYPageHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  eyebrow,
+                  eyebrow.toUpperCase(),
                   style: TextStyle(
                     color: context.yyTextTertiary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.35,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(title, style: Theme.of(context).textTheme.headlineLarge),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: context.yyTextPrimary,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.7,
+                    height: 1.08,
+                  ),
+                ),
                 if (subtitle != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     subtitle!,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: TextStyle(
+                      color: context.yyTextSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ],
@@ -322,6 +324,7 @@ class YYPageHeader extends StatelessWidget {
   }
 }
 
+/// iOS grouped-list section header style.
 class YYSectionTitle extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -341,10 +344,21 @@ class YYSectionTitle extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                color: context.yyTextSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
             if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!, style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 2),
+              Text(
+                subtitle!,
+                style: TextStyle(color: context.yyTextTertiary, fontSize: 12),
+              ),
             ],
           ],
         ),
@@ -356,7 +370,7 @@ class YYSectionTitle extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: rowChildren,
@@ -374,12 +388,11 @@ class YYIconBadge extends StatelessWidget {
     super.key,
     required this.icon,
     required this.color,
-    this.size = 42,
+    this.size = 44,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.isDark;
     return Container(
       width: size,
       height: size,
@@ -396,14 +409,6 @@ class YYIconBadge extends StatelessWidget {
             ),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, 14),
-            blurRadius: 28,
-            spreadRadius: -18,
-            color: color.withValues(alpha: isDark ? 0.38 : 0.18),
-          ),
-        ],
       ),
       child: Icon(icon, color: Colors.white, size: size * 0.44),
     );
@@ -444,26 +449,14 @@ class YYPillButton extends StatelessWidget {
             ? Colors.white.withValues(alpha: 0.06)
             : Colors.black.withValues(alpha: 0.05),
       ),
-      boxShadow: primary
-          ? [
-              BoxShadow(
-                offset: const Offset(0, 10),
-                blurRadius: 22,
-                spreadRadius: -14,
-                color: YYColors.accentPrimary.withValues(
-                  alpha: isDark ? 0.30 : 0.16,
-                ),
-              ),
-            ]
-          : null,
     );
 
     return Material(
       color: Colors.transparent,
       child: Ink(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 12 : 15,
-          vertical: compact ? 8 : 10,
+          horizontal: compact ? 14 : 16,
+          vertical: compact ? 10 : 12,
         ),
         decoration: decoration,
         child: InkWell(
@@ -485,7 +478,7 @@ class YYPillButton extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: compact ? 12 : 13,
+                  fontSize: compact ? 13 : 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -513,6 +506,7 @@ class YYStatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: context.yyBgSurface.withValues(
@@ -571,7 +565,7 @@ class YYTag extends StatelessWidget {
       border: Border.all(color: chipColor.withValues(alpha: 0.18)),
     );
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -746,6 +740,8 @@ class YYActionRow extends StatelessWidget {
   }
 }
 
+/// Standardised track row: cover 44x44 rounded 6, title 15px medium,
+/// subtitle 13px secondary, trailing duration or custom widget.
 class YYTrackRow extends StatelessWidget {
   final MusicItem song;
   final bool active;
@@ -770,93 +766,77 @@ class YYTrackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YYPanel(
-      margin: margin ?? const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      padding: const EdgeInsets.all(11),
-      color: active
-          ? YYColors.accentPrimary.withValues(
-              alpha: context.isDark ? 0.14 : 0.12,
-            )
-          : null,
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onLongPress: onLongPress,
-        child: Row(
-          children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 12)],
-            ClipRRect(
-              borderRadius: BorderRadius.circular(YYRadius.sm),
-              child: SizedBox(
-                width: 54,
-                height: 54,
-                child: GradientCover(
-                  seed: '${song.title}_${song.artist}',
-                  coverUrl: song.coverUrl,
-                  size: 54,
-                  borderRadius: YYRadius.sm,
+    return Padding(
+      padding: margin ?? const EdgeInsets.symmetric(horizontal: 20),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          overlayColor: WidgetStatePropertyAll(
+            context.yyTextPrimary.withValues(alpha: 0.04),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+            child: Row(
+              children: [
+                if (leading != null) ...[leading!, const SizedBox(width: 10)],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: GradientCover(
+                      seed: '${song.title}_${song.artist}',
+                      coverUrl: song.coverUrl,
+                      size: 44,
+                      borderRadius: 6,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active
-                          ? YYColors.accentPrimary
-                          : context.yyTextPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active
+                              ? YYColors.accentPrimary
+                              : context.yyTextPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle ?? '${song.artist} · ${song.album}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.yyTextSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle ?? '${song.artist} · ${song.album}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: context.yyTextSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            trailing ??
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
+                ),
+                const SizedBox(width: 8),
+                trailing ??
                     Text(
                       song.durationText,
                       style: TextStyle(
                         color: context.yyTextTertiary,
-                        fontSize: 12,
+                        fontSize: 13,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
-                    if ((song.format ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        song.format!,
-                        style: TextStyle(
-                          color: YYColors.accentSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

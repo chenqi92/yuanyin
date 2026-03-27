@@ -37,7 +37,7 @@ dependencies:
 
   # Network
   dio: ^5.8.0+1
-  bonsoir: ^5.1.4
+  bonsoir: ^6.0.1
 
   # Local Storage
   path_provider: ^2.1.5

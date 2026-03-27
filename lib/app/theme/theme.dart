@@ -2,31 +2,32 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../../shared/services/native_tab_bar_service.dart';
 
 class YYColors {
   YYColors._();
 
-  static const Color bgBase = Color(0xFF060912);
-  static const Color bgElevated = Color(0xFF101826);
-  static const Color bgSurface = Color(0xFF152033);
-  static const Color bgGlassThick = Color.fromRGBO(10, 18, 31, 0.82);
-  static const Color bgGlassThickSolid = Color(0xFF121C2E);
-  static const Color bgGlassThin = Color.fromRGBO(22, 32, 51, 0.56);
-  static const Color bgGlassThinSolid = Color(0xFF1A2840);
+  static const Color bgBase = Color(0xFF08090B);
+  static const Color bgElevated = Color(0xFF121418);
+  static const Color bgSurface = Color(0xFF191C21);
+  static const Color bgGlassThick = Color.fromRGBO(18, 20, 24, 0.88);
+  static const Color bgGlassThickSolid = Color(0xFF15181D);
+  static const Color bgGlassThin = Color.fromRGBO(24, 27, 33, 0.64);
+  static const Color bgGlassThinSolid = Color(0xFF1B1F25);
 
   static const Color textPrimary = Color(0xFFF7F9FC);
-  static const Color textSecondary = Color(0xFFACB7C9);
-  static const Color textTertiary = Color(0xFF68748B);
+  static const Color textSecondary = Color(0xFFB0B6C1);
+  static const Color textTertiary = Color(0xFF6E7581);
   static const Color textOnAccent = Color(0xFFFFFFFF);
 
-  static const Color accentPrimary = Color(0xFFF68D2E);
+  static const Color accentPrimary = Color(0xFFF29A49);
   static const Color accentSecondary = Color(0xFF22C7B8);
   static const Color accentTertiary = Color(0xFF65CFF7);
 
   static const LinearGradient accentGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFFB25B), Color(0xFFF97316)],
+    colors: [Color(0xFFFFB96C), Color(0xFFF28C37)],
   );
 
   static const LinearGradient auroraGradient = LinearGradient(
@@ -39,7 +40,7 @@ class YYColors {
   static const Color statusError = Color(0xFFF87171);
   static const Color statusWarning = Color(0xFFFBBF24);
   static const Color heartRed = Color(0xFFFF5D73);
-  static const Color separator = Color.fromRGBO(255, 255, 255, 0.08);
+  static const Color separator = Color.fromRGBO(255, 255, 255, 0.07);
 
   static const List<List<Color>> categoryGradients = [
     [Color(0xFFF59E0B), Color(0xFFF97316)],
@@ -129,6 +130,27 @@ class YYSizes {
   static const double playButtonMedium = 34.0;
   static const double progressBarHeight = 4.0;
   static const double songRowHeight = 72.0;
+
+  /// 计算 tab 页面 ListView 所需的底部 padding
+  /// 考虑: native tab bar + safe area + mini player dock
+  static double bottomInset(BuildContext context, {bool hasMiniPlayer = true}) {
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+    final platform = Theme.of(context).platform;
+
+    if (platform == TargetPlatform.iOS) {
+      final metrics = NativeTabBarService.instance.currentMetrics;
+      final nativeTabBar = metrics.totalHeight;
+      const miniPlayerDock = 58.0;
+      return nativeTabBar + (hasMiniPlayer ? miniPlayerDock : 0) + 20;
+    }
+
+    const materialTabBar = 64.0;
+    const miniPlayerDock = 76.0;
+    return materialTabBar +
+        safeBottom +
+        (hasMiniPlayer ? miniPlayerDock : 0) +
+        16;
+  }
 }
 
 class YYSpacing {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +11,7 @@ import '../../../library/presentation/providers/library_provider.dart';
 import '../../../favorites/data/services/favorites_service.dart';
 import '../../../settings/data/services/settings_service.dart';
 import '../../../library/data/services/play_stats_service.dart';
+import '../../../../shared/utils/cover_art_resolver.dart';
 
 /// 播放模式
 enum PlayMode { loop, single, shuffle }
@@ -92,7 +92,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final settings = _ref.read(settingsProvider);
       _currentEngine = settings.engine;
       if (_audioHandler is MusicAudioHandler) {
-        (_audioHandler as MusicAudioHandler).setCrossfadeDuration(settings.crossfadeDuration);
+        (_audioHandler as MusicAudioHandler).setCrossfadeDuration(
+          settings.crossfadeDuration,
+        );
       }
     }
     // 初始化 Live Activity
@@ -128,11 +130,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     // 释放旧的流订阅
-    for (final sub in _subscriptions) { sub.cancel(); }
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
     _subscriptions.clear();
 
     // 保存当前状态（歌曲和队列）
-    final savedSong = state.currentSong;
     final savedQueue = state.queue;
     final savedIndex = state.queueIndex;
 
@@ -171,7 +174,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _setupStreams();
 
     // 恢复队列（不恢复播放位置）
-    if (savedQueue.isNotEmpty && newHandler != null) {
+    if (savedQueue.isNotEmpty) {
       newHandler.setQueue(savedQueue, startIndex: savedIndex);
     }
 
@@ -181,35 +184,46 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _setupStreams() {
     final handler = _audioHandler!;
 
-    _subscriptions.add(handler.positionStream.listen((pos) {
-      if (mounted) {
-        state = state.copyWith(position: pos);
-        // 每 3 秒更新一次 Live Activity（避免过于频繁）
-        _liveActivityUpdateCounter++;
-        if (_liveActivityUpdateCounter % 3 == 0 && state.currentSong != null) {
-          _updateLiveActivity();
+    _subscriptions.add(
+      handler.positionStream.listen((pos) {
+        if (mounted) {
+          state = state.copyWith(position: pos);
+          // 每 3 秒更新一次 Live Activity（避免过于频繁）
+          _liveActivityUpdateCounter++;
+          if (_liveActivityUpdateCounter % 3 == 0 &&
+              state.currentSong != null) {
+            _updateLiveActivity();
+          }
         }
-      }
-    }));
+      }),
+    );
 
-    _subscriptions.add(handler.durationStream.listen((dur) {
-      if (mounted) state = state.copyWith(duration: dur);
-    }));
+    _subscriptions.add(
+      handler.durationStream.listen((dur) {
+        if (mounted) state = state.copyWith(duration: dur);
+      }),
+    );
 
-    _subscriptions.add(handler.playingStream.listen((playing) {
-      if (mounted) {
-        state = state.copyWith(isPlaying: playing);
-        if (state.currentSong != null) _updateLiveActivity();
-      }
-    }));
+    _subscriptions.add(
+      handler.playingStream.listen((playing) {
+        if (mounted) {
+          state = state.copyWith(isPlaying: playing);
+          if (state.currentSong != null) _updateLiveActivity();
+        }
+      }),
+    );
 
-    _subscriptions.add(handler.bufferingStream.listen((buffering) {
-      if (mounted) state = state.copyWith(isBuffering: buffering);
-    }));
+    _subscriptions.add(
+      handler.bufferingStream.listen((buffering) {
+        if (mounted) state = state.copyWith(isBuffering: buffering);
+      }),
+    );
 
-    _subscriptions.add(handler.completedStream.listen((completed) {
-      if (completed && mounted) _onTrackCompleted();
-    }));
+    _subscriptions.add(
+      handler.completedStream.listen((completed) {
+        if (completed && mounted) _onTrackCompleted();
+      }),
+    );
 
     handler.onSkipToIndex = (index) async {
       if (index >= 0 && index < state.queue.length) {
@@ -270,7 +284,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _audioHandler!.prepareForNewTrack();
       await _audioHandler!.setCurrentMusic(song);
       if (song.filePath != null) {
-        final uri = Uri.file(song.filePath!).toString();
+        final path = song.filePath!;
+        final uri = (path.startsWith('http://') || path.startsWith('https://'))
+            ? path
+            : Uri.file(path).toString();
         await _audioHandler!.setAudioSource(uri);
         await _audioHandler!.play();
       }
@@ -286,11 +303,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _startLiveActivity(MusicItem song) async {
     // 尝试读取封面数据
     Uint8List? coverData;
-    if (song.coverUrl != null && song.coverUrl!.startsWith('/')) {
+    final coverFile = yyResolveLocalCoverFile(song.coverUrl);
+    if (coverFile != null) {
       try {
-        final file = File(song.coverUrl!);
-        if (await file.exists()) {
-          coverData = await file.readAsBytes();
+        if (await coverFile.exists()) {
+          coverData = await coverFile.readAsBytes();
         }
       } catch (_) {}
     }
@@ -339,8 +356,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> previous() async {
     if (state.queue.isEmpty) return;
-    if (state.position.inSeconds > 3) { seek(Duration.zero); return; }
-    final prevIndex = (state.queueIndex - 1 + state.queue.length) % state.queue.length;
+    if (state.position.inSeconds > 3) {
+      seek(Duration.zero);
+      return;
+    }
+    final prevIndex =
+        (state.queueIndex - 1 + state.queue.length) % state.queue.length;
     await _playAtIndex(prevIndex);
   }
 
@@ -431,9 +452,39 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _ref.read(settingsProvider.notifier).setVolume(clamped);
   }
 
+  Future<void> refreshCurrentSong() async {
+    final currentSong = state.currentSong;
+    if (currentSong == null) return;
+
+    final refreshed = await _ref
+        .read(musicDatabaseProvider)
+        .getSongById(currentSong.id);
+    if (refreshed == null) return;
+
+    final queue = [...state.queue];
+    final queueIndex = queue.indexWhere((song) => song.id == refreshed.id);
+    if (queueIndex != -1) {
+      queue[queueIndex] = refreshed;
+    }
+
+    state = state.copyWith(
+      currentSong: refreshed,
+      queue: queue,
+      duration: refreshed.duration ?? state.duration,
+    );
+
+    if (_audioHandler != null) {
+      await _audioHandler!.setCurrentMusic(refreshed);
+    }
+
+    await _updateLiveActivity();
+  }
+
   @override
   void dispose() {
-    for (final sub in _subscriptions) { sub.cancel(); }
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
     _liveActivity.dispose();
     super.dispose();
   }
@@ -442,8 +493,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 /// 可变的 audioHandler provider（支持引擎运行时切换）
 final audioHandlerProvider = StateProvider<IMusicAudioHandler?>((ref) => null);
 
-final playerProvider =
-    StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
+final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
+  ref,
+) {
   final handler = ref.watch(audioHandlerProvider);
   return PlayerNotifier(handler, ref);
 });

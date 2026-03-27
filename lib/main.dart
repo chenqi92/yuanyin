@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -21,69 +22,82 @@ void _triggerNetworkPermission() {
 }
 
 void main() async {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    FlutterError.onError = (details) {
-      FlutterError.dumpErrorToConsole(details);
-      runApp(MaterialApp(
-        home: Scaffold(
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'FlutterError:\n${details.exceptionAsString()}\n\n${details.stack}',
-                style: const TextStyle(color: Colors.red, fontSize: 12),
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      assert(() {
+        debugPaintBaselinesEnabled = false;
+        debugPaintSizeEnabled = false;
+        debugPaintPointersEnabled = false;
+        debugPaintLayerBordersEnabled = false;
+        debugRepaintRainbowEnabled = false;
+        debugRepaintTextRainbowEnabled = false;
+        return true;
+      }());
+      FlutterError.onError = (details) {
+        FlutterError.dumpErrorToConsole(details);
+        runApp(
+          MaterialApp(
+            home: Scaffold(
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'FlutterError:\n${details.exceptionAsString()}\n\n${details.stack}',
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
               ),
             ),
           ),
+        );
+      };
+
+      NativeTabBarService.instance.initialize();
+
+      // 初始化 Hive
+      await Hive.initFlutter();
+
+      // 初始化 AudioHandler（后台播放 + 系统媒体控制）
+      late final MusicAudioHandler audioHandler;
+      try {
+        audioHandler = await initAudioHandler();
+      } catch (e, st) {
+        debugPrint('AudioHandler 初始化失败: $e');
+        runApp(
+          MaterialApp(
+            home: Scaffold(
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'AudioHandler Error:\n$e\n\n$st',
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 主动触发网络权限 — iOS 首次需要弹出本地网络访问权限弹框
+      _triggerNetworkPermission();
+
+      runApp(
+        ProviderScope(
+          overrides: [audioHandlerProvider.overrideWith((ref) => audioHandler)],
+          child: const PrimuseApp(),
         ),
-      ));
-    };
-
-    NativeTabBarService.instance.initialize();
-
-    // 初始化 Hive
-    await Hive.initFlutter();
-
-    // 初始化 AudioHandler（后台播放 + 系统媒体控制）
-    MusicAudioHandler? audioHandler;
-    try {
-      audioHandler = await initAudioHandler();
-    } catch (e, st) {
-      debugPrint('AudioHandler 初始化失败: $e');
-      runApp(MaterialApp(
-        home: Scaffold(
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'AudioHandler Error:\n$e\n\n$st',
-                style: const TextStyle(color: Colors.red, fontSize: 12),
-              ),
-            ),
-          ),
-         ),
-      ));
-      return;
-    }
-
-    // 主动触发网络权限 — iOS 首次需要弹出本地网络访问权限弹框
-    _triggerNetworkPermission();
-
-    runApp(
-      ProviderScope(
-        overrides: [
-          if (audioHandler != null)
-            audioHandlerProvider.overrideWith((ref) => audioHandler),
-        ],
-        child: const PrimuseApp(),
-      ),
-    );
-  }, (error, stack) {
-    // 仅记录日志，不替换整个 app — 非致命异常不应杀死 UI
-    debugPrint('⚠️ Uncaught Error: $error');
-    debugPrint('$stack');
-  });
+      );
+    },
+    (error, stack) {
+      // 仅记录日志，不替换整个 app — 非致命异常不应杀死 UI
+      debugPrint('⚠️ Uncaught Error: $error');
+      debugPrint('$stack');
+    },
+  );
 }
 
 /// Primuse App 根组件 — 支持 light/dark/system 主题切换 + i18n

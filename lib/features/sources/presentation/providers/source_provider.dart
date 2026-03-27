@@ -318,7 +318,8 @@ class SourcesNotifier extends StateNotifier<SourcesState> {
           for (final fp in folderPaths) {
             final songs = await _smbScanner.scanSynology(
               host: source.host!, port: source.port ?? 5000,
-              sid: loginResult.sid!, folderPath: fp, onProgress: _onProgress,
+              sid: loginResult.sid!, folderPath: fp,
+              useSsl: source.useSsl, onProgress: _onProgress,
             );
             allSongs.addAll(songs);
           }

@@ -15,6 +15,7 @@ class DiscoveredDevice {
     required this.port,
     required this.type,
     this.serviceType,
+    this.txtRecords,
   });
 
   final String name;
@@ -22,6 +23,7 @@ class DiscoveredDevice {
   final int port;
   final SourceType type;
   final String? serviceType;
+  final Map<String, String>? txtRecords;
 
   @override
   String toString() => 'DiscoveredDevice($name, $host:$port, $type)';
@@ -72,7 +74,12 @@ final networkDiscoveryProvider =
   (ref) => NetworkDiscoveryNotifier(),
 );
 
-/// 网络发现服务（bonsoir v5 API）
+/// 网络发现服务
+/// 使用 bonsoir 包通过原生 API 发现局域网设备：
+/// - iOS/macOS: Apple Bonjour
+/// - Android: Network Service Discovery (NSD)
+/// - Windows: Windows DNS-SD
+/// - Linux: Avahi
 class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
   NetworkDiscoveryNotifier() : super(const NetworkDiscoveryState());
 
@@ -81,8 +88,9 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
     '_smb._tcp': SourceType.smb,
     '_webdav._tcp': SourceType.webdav,
     '_webdavs._tcp': SourceType.webdav,
-    '_http._tcp': null,
+    '_http._tcp': null, // 通用 HTTP，需要进一步判断
     '_https._tcp': null,
+    // NAS 设备专用服务
     '_diskstation._tcp': SourceType.synology,
     '_synology._tcp': SourceType.synology,
   };
@@ -90,33 +98,33 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
   final Map<String, BonsoirDiscovery> _discoveries = {};
   final Map<String, StreamSubscription<BonsoirDiscoveryEvent>> _subscriptions = {};
   Timer? _discoveryTimer;
-  final Set<DiscoveredDevice> _deviceSet = {};
 
   /// 开始发现
   Future<void> startDiscovery() async {
     if (state.isDiscovering) return;
+
+    // 先停止任何现有的发现
     await stopDiscovery();
 
-    _deviceSet.clear();
     state = state.copyWith(isDiscovering: true, devices: [], error: null);
-    _log.i('NetworkDiscovery: 开始发现局域网设备');
+    _log.i('NetworkDiscovery: 开始发现局域网设备 (使用原生 API)');
 
     try {
+      final devices = <DiscoveredDevice>{};
+
+      // 为每个服务类型创建发现实例
       for (final entry in _serviceTypes.entries) {
         final serviceType = entry.key;
         final sourceType = entry.value;
 
         try {
           final discovery = BonsoirDiscovery(type: serviceType);
-          await discovery.ready;
+          await discovery.initialize();
 
-          // ignore: cancel_subscriptions
+          // 监听发现事件
+          // ignore: cancel_subscriptions - 已在 _subscriptions 中管理
           final subscription = discovery.eventStream?.listen(
-            (event) => _handleEvent(event, serviceType, sourceType),
-            onError: (error) {
-              _log.w('NetworkDiscovery: $serviceType 流错误: $error');
-              // DefunctConnection 等平台错误不阻断整体发现流程
-            },
+            (event) => _handleDiscoveryEvent(event, serviceType, sourceType, devices),
           );
 
           if (subscription != null) {
@@ -125,71 +133,88 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
 
           await discovery.start();
           _discoveries[serviceType] = discovery;
-          _log.d('NetworkDiscovery: 开始监听 $serviceType');
-        } catch (e) {
-          _log.w('NetworkDiscovery: 初始化 $serviceType 失败: $e');
+
+          _log.d('NetworkDiscovery: 开始监听服务类型 $serviceType');
+        } on Exception catch (e) {
+          _log.w('NetworkDiscovery: 初始化 $serviceType 发现失败: $e');
         }
       }
 
+      // 设置超时，在一段时间后停止发现并更新状态
       _discoveryTimer = Timer(const Duration(seconds: 10), _finishDiscovery);
-    } catch (e) {
+    } on Exception catch (e) {
       _log.e('NetworkDiscovery: 发现失败: $e');
-      state = state.copyWith(isDiscovering: false, error: e.toString());
+      state = state.copyWith(
+        isDiscovering: false,
+        error: e.toString(),
+      );
     }
   }
 
-  /// 处理发现事件（bonsoir v5 使用 type 枚举）
-  void _handleEvent(
+  /// 处理发现事件（bonsoir v6 使用 sealed class pattern matching）
+  void _handleDiscoveryEvent(
     BonsoirDiscoveryEvent event,
     String serviceType,
     SourceType? sourceType,
+    Set<DiscoveredDevice> devices,
   ) {
-    final service = event.service;
-
-    switch (event.type) {
-      case BonsoirDiscoveryEventType.discoveryServiceFound:
-        _log.d('NetworkDiscovery: 发现服务 ${service?.name} ($serviceType)');
-        // 需要 resolve 获取 IP
+    switch (event) {
+      case BonsoirDiscoveryServiceFoundEvent():
+        _log.d('NetworkDiscovery: 发现服务 ${event.service.name} ($serviceType)');
+        // 服务发现后需要解析获取 IP 和端口
         final discovery = _discoveries[serviceType];
-        if (discovery != null && service != null && discovery is ServiceResolver) {
-          (discovery as ServiceResolver).resolveService(service);
-        }
+        if (discovery == null) return;
+        event.service.resolve(discovery.serviceResolver);
 
-      case BonsoirDiscoveryEventType.discoveryServiceResolved:
-        if (service == null || service is! ResolvedBonsoirService) return;
+      case BonsoirDiscoveryServiceResolvedEvent():
+        final service = event.service;
         final host = service.host;
         final port = service.port;
         final name = service.name;
 
         if (host != null && host.isNotEmpty) {
+          // 确定源类型
           final type = sourceType ?? _guessSourceType(name, port);
           if (type != null) {
+            // 转换 TXT 记录
+            Map<String, String>? txtRecords;
+            final attributes = service.attributes;
+            if (attributes.isNotEmpty) {
+              txtRecords = Map<String, String>.from(attributes);
+            }
+
             final device = DiscoveredDevice(
               name: name,
               host: host,
               port: port,
               type: type,
               serviceType: serviceType,
+              txtRecords: txtRecords,
             );
-            if (_deviceSet.add(device)) {
+
+            // 避免重复
+            if (devices.add(device)) {
               _log.i('NetworkDiscovery: 解析设备 $device');
-              state = state.copyWith(devices: _deviceSet.toList());
+              state = state.copyWith(devices: devices.toList());
             }
           }
         }
 
-      case BonsoirDiscoveryEventType.discoveryServiceLost:
-        if (service == null) return;
-        _log.d('NetworkDiscovery: 服务离线 ${service.name}');
-        // 尝试用名称匹配移除
-        _deviceSet.removeWhere((d) => d.name == service.name);
-        state = state.copyWith(devices: _deviceSet.toList());
+      case BonsoirDiscoveryServiceLostEvent():
+        _log.d('NetworkDiscovery: 服务离线 ${event.service.name}');
+        final host = event.service.host;
+        final port = event.service.port;
+        if (host != null) {
+          devices.removeWhere((d) => d.host == host && d.port == port);
+          state = state.copyWith(devices: devices.toList());
+        }
 
       default:
         break;
     }
   }
 
+  /// 完成发现
   void _finishDiscovery() {
     _log.i('NetworkDiscovery: 发现完成，共 ${state.devices.length} 个设备');
     state = state.copyWith(
@@ -198,6 +223,7 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
     );
   }
 
+  /// 停止发现
   Future<void> stopDiscovery() async {
     _discoveryTimer?.cancel();
     _discoveryTimer = null;
@@ -210,7 +236,7 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
     for (final discovery in _discoveries.values) {
       try {
         await discovery.stop();
-      } catch (e) {
+      } on Exception catch (e) {
         _log.w('NetworkDiscovery: 停止发现失败: $e');
       }
     }
@@ -221,11 +247,14 @@ class NetworkDiscoveryNotifier extends StateNotifier<NetworkDiscoveryState> {
     }
   }
 
+  /// 根据名称和端口猜测源类型
   SourceType? _guessSourceType(String name, int port) {
     final nameLower = name.toLowerCase();
+
     if (nameLower.contains('synology') || nameLower.contains('diskstation')) {
       return SourceType.synology;
     }
+
     return switch (port) {
       5001 || 5000 => SourceType.synology,
       445 => SourceType.smb,

@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/services/shell_navigation_visibility.dart';
 import '../../../../shared/widgets/gradient_cover.dart';
+import '../../../../shared/widgets/native_overlay_sheet.dart';
 import '../../../../shared/widgets/song_actions_sheet.dart';
 import '../../../player/domain/entities/music_item.dart';
 import '../../../player/presentation/providers/player_provider.dart';
@@ -23,7 +23,7 @@ const _playlistGradients = [
   [Color(0xFF89F7FE), Color(0xFF66A6FF)],
 ];
 
-/// 歌单详情页 — 自适应亮暗主题 + 拖拽排序
+/// Playlist detail page -- iOS native style with reorder
 class PlaylistDetailPage extends ConsumerStatefulWidget {
   final String playlistId;
   const PlaylistDetailPage({super.key, required this.playlistId});
@@ -50,121 +50,238 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
     final service = ref.read(playlistServiceProvider);
     final db = ref.read(musicDatabaseProvider);
     final playlist = await service.getById(widget.playlistId);
-    if (playlist == null) { Navigator.pop(context); return; }
+    if (playlist == null) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      return;
+    }
     final allSongs = await db.getAllSongs();
     final songMap = {for (final s in allSongs) s.id: s};
-    final songs = playlist.songIds.where((id) => songMap.containsKey(id)).map((id) => songMap[id]!).toList();
-    if (mounted) setState(() { _playlist = playlist; _songs = songs; _isLoading = false; });
+    final songs = playlist.songIds
+        .where((id) => songMap.containsKey(id))
+        .map((id) => songMap[id]!)
+        .toList();
+    if (mounted) {
+      setState(() {
+        _playlist = playlist;
+        _songs = songs;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading || _playlist == null) {
-      return Scaffold(
+      return CupertinoPageScaffold(
         backgroundColor: context.yyBgBase,
-        body: const Center(child: CircularProgressIndicator(color: YYColors.accentPrimary)),
+        child: const Center(child: CupertinoActivityIndicator(radius: 14)),
       );
     }
 
     final playlist = _playlist!;
-    final colors = _playlistGradients[playlist.colorIndex % _playlistGradients.length];
+    final colors =
+        _playlistGradients[playlist.colorIndex % _playlistGradients.length];
     final playerState = ref.watch(playerProvider);
 
-    return Scaffold(
+    return CupertinoPageScaffold(
       backgroundColor: context.yyBgBase,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            backgroundColor: Colors.transparent,
-            foregroundColor: context.yyTextPrimary,
-            expandedHeight: 200,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(playlist.name, style: TextStyle(color: context.yyTextPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
-              background: Container(
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: context.yyBgBase.withValues(alpha: 0.9),
+        border: Border(
+          bottom: BorderSide(color: context.yySeparator, width: 0.5),
+        ),
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          child: Icon(
+            CupertinoIcons.chevron_back,
+            color: YYColors.accentPrimary,
+            size: 22,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        middle: Text(
+          playlist.name,
+          style: TextStyle(
+            color: context.yyTextPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              onPressed: () => setState(() => _isReordering = !_isReordering),
+              child: Icon(
+                _isReordering
+                    ? CupertinoIcons.checkmark
+                    : CupertinoIcons.arrow_up_arrow_down,
+                color: _isReordering
+                    ? YYColors.accentPrimary
+                    : context.yyTextSecondary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              onPressed: () => _showOptions(context),
+              child: Icon(
+                CupertinoIcons.ellipsis,
+                color: context.yyTextSecondary,
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          slivers: [
+            // Header with gradient
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: colors.map((c) => c.withValues(alpha: 0.3)).toList(),
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: colors
+                        .map((c) => c.withValues(alpha: 0.25))
+                        .toList(),
                   ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Center(child: Icon(CupertinoIcons.music_note_list, size: 64, color: colors[0].withValues(alpha: 0.5))),
-              ),
-            ),
-            actions: [
-              if (_songs.isNotEmpty)
-                IconButton(
-                  icon: const Icon(CupertinoIcons.play_circle, size: 28),
-                  onPressed: () => ref.read(playerProvider.notifier).playSong(_songs.first, queue: _songs),
-                ),
-              // 排序切换按钮
-              IconButton(
-                icon: Icon(
-                  _isReordering ? CupertinoIcons.checkmark : CupertinoIcons.arrow_up_arrow_down,
-                  size: 20,
-                ),
-                onPressed: () => setState(() => _isReordering = !_isReordering),
-              ),
-              IconButton(
-                icon: const Icon(CupertinoIcons.ellipsis, size: 22),
-                onPressed: () => _showOptions(context),
-              ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Row(
-                children: [
-                  Text('${_songs.length} 首歌曲', style: TextStyle(color: context.yyTextTertiary, fontSize: 13)),
-                  if (_isReordering) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: YYColors.accentPrimary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text('拖拽排序中', style: TextStyle(
-                        color: YYColors.accentPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
+                child: Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.music_note_list,
+                      size: 40,
+                      color: colors[0].withValues(alpha: 0.7),
                     ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_songs.length} 首歌曲',
+                            style: TextStyle(
+                              color: context.yyTextSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (_isReordering)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                '拖拽排序中',
+                                style: TextStyle(
+                                  color: YYColors.accentPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_songs.isNotEmpty && !_isReordering)
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size.zero,
+                        color: YYColors.accentPrimary,
+                        borderRadius: BorderRadius.circular(18),
+                        onPressed: () => ref
+                            .read(playerProvider.notifier)
+                            .playSong(_songs.first, queue: _songs),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              CupertinoIcons.play_fill,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              '播放',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          if (_songs.isEmpty)
-            SliverFillRemaining(
-              child: Center(child: Text('歌单是空的\n从歌曲列表添加歌曲到这里',
-                  style: TextStyle(color: context.yyTextTertiary, fontSize: 14), textAlign: TextAlign.center)),
-            ),
-          if (_isReordering)
-            SliverReorderableList(
-              itemCount: _songs.length,
-              onReorder: _onReorder,
-              itemBuilder: (context, index) {
-                final song = _songs[index];
-                final isPlaying = playerState.currentSong?.id == song.id;
-                return ReorderableDragStartListener(
-                  key: ValueKey(song.id),
-                  index: index,
-                  child: _SongTile(
-                    song: song,
-                    index: index,
-                    isPlaying: isPlaying,
-                    showDragHandle: true,
-                    onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
-                    onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
+
+            // Empty state
+            if (_songs.isEmpty)
+              SliverFillRemaining(
+                child: Center(
+                  child: Text(
+                    '歌单是空的\n从歌曲列表添加歌曲到这里',
+                    style: TextStyle(
+                      color: context.yyTextTertiary,
+                      fontSize: 15,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                );
-              },
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.only(bottom: 28),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
+                ),
+              ),
+
+            // Reorder mode
+            if (_isReordering && _songs.isNotEmpty)
+              SliverReorderableList(
+                itemCount: _songs.length,
+                onReorder: _onReorder,
+                itemBuilder: (context, index) {
+                  final song = _songs[index];
+                  final isPlaying = playerState.currentSong?.id == song.id;
+                  return ReorderableDragStartListener(
+                    key: ValueKey(song.id),
+                    index: index,
+                    child: _SongTile(
+                      song: song,
+                      index: index,
+                      isPlaying: isPlaying,
+                      showDragHandle: true,
+                      onTap: () => ref
+                          .read(playerProvider.notifier)
+                          .playSong(song, queue: _songs),
+                      onLongPress: () => showSongActions(
+                        context,
+                        ref,
+                        song,
+                        playlistId: widget.playlistId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            // Normal list
+            if (!_isReordering && _songs.isNotEmpty)
+              SliverPadding(
+                padding: EdgeInsets.only(
+                  bottom: YYSizes.bottomInset(context, hasMiniPlayer: false),
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
                     final song = _songs[index];
                     final isPlaying = playerState.currentSong?.id == song.id;
                     return _SongTile(
@@ -173,15 +290,21 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
                       index: index,
                       isPlaying: isPlaying,
                       showDragHandle: false,
-                      onTap: () => ref.read(playerProvider.notifier).playSong(song, queue: _songs),
-                      onLongPress: () => showSongActions(context, ref, song, playlistId: widget.playlistId),
-                    ).animate().fadeIn(delay: (30 * index).ms, duration: 300.ms);
-                  },
-                  childCount: _songs.length,
+                      onTap: () => ref
+                          .read(playerProvider.notifier)
+                          .playSong(song, queue: _songs),
+                      onLongPress: () => showSongActions(
+                        context,
+                        ref,
+                        song,
+                        playlistId: widget.playlistId,
+                      ),
+                    );
+                  }, childCount: _songs.length),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -192,46 +315,49 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
       final item = _songs.removeAt(oldIndex);
       _songs.insert(newIndex, item);
     });
-    // 异步持久化（+1 因为 ReorderableListView 的 convention）
-    ref.read(playlistsProvider.notifier).reorderSongs(
-      widget.playlistId,
-      oldIndex,
-      oldIndex < newIndex ? newIndex + 1 : newIndex,
-    );
+    ref
+        .read(playlistsProvider.notifier)
+        .reorderSongs(
+          widget.playlistId,
+          oldIndex,
+          oldIndex < newIndex ? newIndex + 1 : newIndex,
+        );
   }
 
   void _showOptions(BuildContext context) {
-    showModalBottomSheet(
+    showYYCupertinoPopup(
       context: context,
-      useRootNavigator: true,
-      backgroundColor: context.yyBgElevated,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(CupertinoIcons.pencil, color: context.yyTextPrimary),
-              title: Text('重命名', style: TextStyle(color: context.yyTextPrimary)),
-              onTap: () { Navigator.pop(context); _renamePlaylist(); },
-            ),
-            ListTile(
-              leading: Icon(CupertinoIcons.share, color: context.yyTextPrimary),
-              title: Text('导出为 M3U', style: TextStyle(color: context.yyTextPrimary)),
-              onTap: () {
-                Navigator.pop(context);
-                _exportPlaylist();
-              },
-            ),
-            ListTile(
-              leading: const Icon(CupertinoIcons.delete, color: Colors.redAccent),
-              title: const Text('删除歌单', style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
-                Navigator.pop(context);
-                ref.read(playlistsProvider.notifier).deletePlaylist(widget.playlistId);
-                Navigator.pop(context);
-              },
-            ),
-          ],
+      builder: (ctx) => CupertinoActionSheet(
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _renamePlaylist();
+            },
+            child: const Text('重命名'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _exportPlaylist();
+            },
+            child: const Text('导出为 M3U'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref
+                  .read(playlistsProvider.notifier)
+                  .deletePlaylist(widget.playlistId);
+              Navigator.pop(context);
+            },
+            child: const Text('删除歌单'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
         ),
       ),
     );
@@ -253,7 +379,10 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导出失败: $e'), behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text('导出失败: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
@@ -261,25 +390,32 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
 
   void _renamePlaylist() {
     final controller = TextEditingController(text: _playlist?.name ?? '');
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      useRootNavigator: true,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.yyBgElevated,
-        title: Text('重命名歌单', style: TextStyle(color: context.yyTextPrimary)),
-        content: TextField(
-          controller: controller,
-          style: TextStyle(color: context.yyTextPrimary),
-          autofocus: true,
-          decoration: InputDecoration(hintText: '歌单名称', hintStyle: TextStyle(color: context.yyTextTertiary)),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('重命名歌单'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: controller,
+            placeholder: '歌单名称',
+            autofocus: true,
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
+          CupertinoDialogAction(
+            isDefaultAction: false,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
-                ref.read(playlistsProvider.notifier).renamePlaylist(widget.playlistId, name);
+                ref
+                    .read(playlistsProvider.notifier)
+                    .renamePlaylist(widget.playlistId, name);
                 Navigator.pop(ctx);
                 _load();
               }
@@ -292,7 +428,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
   }
 }
 
-/// 歌曲条目
+/// Song tile
 class _SongTile extends StatelessWidget {
   final MusicItem song;
   final int index;
@@ -313,48 +449,87 @@ class _SongTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Row(
-            children: [
-              if (showDragHandle)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: Icon(CupertinoIcons.line_horizontal_3, size: 18, color: context.yyTextTertiary),
-                )
-              else
-                SizedBox(
-                  width: 24,
-                  child: Text('${index + 1}', style: TextStyle(
-                      color: isPlaying ? YYColors.accentPrimary : context.yyTextTertiary, fontSize: 14),
-                      textAlign: TextAlign.center),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        color: context.yyBgBase, // Required for reorderable background
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        child: Row(
+          children: [
+            if (showDragHandle)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Icon(
+                  CupertinoIcons.line_horizontal_3,
+                  size: 18,
+                  color: context.yyTextTertiary,
                 ),
-              const SizedBox(width: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(width: 44, height: 44, child: GradientCover(seed: song.title, coverUrl: song.coverUrl, size: 44)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(song.title, style: TextStyle(
-                        color: isPlaying ? YYColors.accentPrimary : context.yyTextPrimary,
-                        fontWeight: FontWeight.w500, fontSize: 15),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text(song.artist, style: TextStyle(color: context.yyTextSecondary, fontSize: 12)),
-                  ],
+              )
+            else
+              SizedBox(
+                width: 24,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: isPlaying
+                        ? YYColors.accentPrimary
+                        : context.yyTextTertiary,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
-              Text(song.durationText, style: TextStyle(color: context.yyTextTertiary, fontSize: 12)),
-            ],
-          ),
+            const SizedBox(width: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: GradientCover(
+                  seed: song.title,
+                  coverUrl: song.coverUrl,
+                  filePath: song.filePath,
+                  size: 44,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    style: TextStyle(
+                      color: isPlaying
+                          ? YYColors.accentPrimary
+                          : context.yyTextPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    style: TextStyle(
+                      color: context.yyTextSecondary,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              song.durationText,
+              style: TextStyle(color: context.yyTextTertiary, fontSize: 13),
+            ),
+          ],
         ),
       ),
     );

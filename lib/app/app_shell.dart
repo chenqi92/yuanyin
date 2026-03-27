@@ -24,7 +24,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  int? _lastNativeIndex;
   bool? _lastNativeVisibility;
 
   void _syncNativeTabBar({
@@ -33,7 +32,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     required bool visible,
   }) {
     if (!isIOS) {
-      _lastNativeIndex = null;
       _lastNativeVisibility = null;
       return;
     }
@@ -63,7 +61,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // 初始化原生 tab bar 服务（注册 method channel handler）
     NativeTabBarService.instance.initialize();
     // 监听原生 UITabBarController 的 tab 选择（仅 iOS）
-    _tabSub = NativeTabBarService.instance.onTabSelected.listen(_handleNativeTabSelected);
+    _tabSub = NativeTabBarService.instance.onTabSelected.listen(
+      _handleNativeTabSelected,
+    );
   }
 
   @override
@@ -148,10 +148,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                                         context.push('/search');
                                         return;
                                       }
-                                      ShellNavigationVisibility.instance.reset();
+                                      ShellNavigationVisibility.instance
+                                          .reset();
                                       widget.navigationShell.goBranch(
                                         index,
-                                        initialLocation: index ==
+                                        initialLocation:
+                                            index ==
                                             widget.navigationShell.currentIndex,
                                       );
                                     },
@@ -198,7 +200,17 @@ class _ShellBottomArea extends StatelessWidget {
     );
 
     if (isIOS) {
-      return content;
+      return ValueListenableBuilder<NativeTabBarMetrics>(
+        valueListenable: NativeTabBarService.instance.metrics,
+        builder: (context, metrics, _) {
+          return AnimatedPadding(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.only(bottom: metrics.totalHeight),
+            child: content,
+          );
+        },
+      );
     }
 
     return SafeArea(
@@ -214,21 +226,42 @@ class _MiniPlayerDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.yyBgElevated.withValues(
-          alpha: context.isDark ? 0.96 : 0.99,
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+
+    if (isIOS) {
+      final screenWidth = MediaQuery.sizeOf(context).width;
+      final dockWidth = (screenWidth - 108).clamp(228.0, 338.0).toDouble();
+
+      return Center(
+        child: SizedBox(
+          width: dockWidth,
+          child: const YYLiquidGlass(
+            thin: true,
+            radius: YYRadius.full,
+            padding: EdgeInsets.fromLTRB(12, 8, 10, 8),
+            child: MiniPlayer(),
+          ),
         ),
-        borderRadius: BorderRadius.circular(YYRadius.lg),
-        border: Border.all(
-          color: context.isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
-        boxShadow: YYShadows.cardSubtle,
+      );
+    }
+
+    return YYPanel(
+      radius: YYRadius.xl,
+      padding: EdgeInsets.zero,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          context.yyBgElevated.withValues(alpha: context.isDark ? 0.84 : 0.96),
+          context
+              .yyBlend(YYColors.accentPrimary, amount: 0.10)
+              .withValues(alpha: context.isDark ? 0.78 : 0.90),
+        ],
       ),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: const MiniPlayer(),
+      child: const Padding(
+        padding: EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: MiniPlayer(),
+      ),
     );
   }
 }
@@ -283,18 +316,11 @@ class _BottomNavigation extends StatelessWidget {
       return nav;
     }
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.yyBgElevated.withValues(
-          alpha: context.isDark ? 0.98 : 0.99,
-        ),
-        borderRadius: BorderRadius.circular(YYRadius.xl),
-        border: Border.all(
-          color: context.isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
-        boxShadow: YYShadows.cardSubtle,
+    return YYPanel(
+      radius: YYRadius.xl,
+      padding: EdgeInsets.zero,
+      color: context.yyBgElevated.withValues(
+        alpha: context.isDark ? 0.78 : 0.96,
       ),
       child: nav,
     );

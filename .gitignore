@@ -99,3 +99,4 @@ test/.test_coverage.dart
 .gemini/
 .agent/
 .agents/
+.claude

@@ -1,16 +1,17 @@
-import 'dart:math';
 import 'dart:ui';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../app/theme/theme.dart';
+import '../../../../shared/utils/cover_art_resolver.dart';
 import '../../../player/presentation/providers/player_provider.dart';
 import '../../data/services/lyric_parser.dart';
 import '../../data/services/lyric_service.dart';
 import '../../../library/presentation/providers/library_provider.dart';
-import '../widgets/lyric_view.dart';
 
-/// 全屏歌词页 — 沉浸式背景 + 实时滚动歌词 + 自动在线获取
+/// Apple Music style full-screen lyrics page
 class LyricsPage extends ConsumerStatefulWidget {
   const LyricsPage({super.key});
 
@@ -22,6 +23,14 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
   bool _isFetching = false;
   String? _fetchedLyrics;
   bool _fetchAttempted = false;
+  final ScrollController _scrollController = ScrollController();
+  int _currentIndex = -1;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,138 +39,253 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
 
     if (song == null) {
       return Scaffold(
-        backgroundColor: context.yyBgBase,
+        backgroundColor: Colors.black,
         body: Center(
-          child: Text('暂无播放', style: TextStyle(color: context.yyTextSecondary)),
+          child: Text(
+            '暂无播放',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+          ),
         ),
       );
     }
 
-    // 基于歌曲名生成背景主色
-    final hash = '${song.title}_${song.artist}'.hashCode;
-    final random = Random(hash);
-    final hue = random.nextDouble() * 360;
-    final isDark = context.isDark;
-    final bgColor = HSLColor.fromAHSL(1.0, hue, 0.5, isDark ? 0.2 : 0.75).toColor();
+    final accent = YYSeedPalette.primary(song.title);
 
-    // 解析歌词 — 优先 fetched，其次 song.lyrics
+    // Parse lyrics
     final lrcText = _fetchedLyrics ?? song.lyrics;
     final lyrics = (lrcText != null && lrcText.isNotEmpty)
         ? LrcParser.parse(lrcText)
         : <LyricLine>[];
 
-    // 自动获取歌词（仅在无歌词且未尝试过时）
+    // Auto-fetch lyrics
     if (lyrics.isEmpty && !_fetchAttempted && !_isFetching) {
-      _autoFetchLyrics(song.title, song.artist, song.album, song.duration, song.id);
+      _autoFetchLyrics(
+        song.title,
+        song.artist,
+        song.album,
+        song.duration,
+        song.id,
+      );
+    }
+
+    // Track current lyric line
+    final position = playerState.position;
+    final newIndex = lyrics.isNotEmpty
+        ? LrcParser.findCurrentIndex(lyrics, position)
+        : -1;
+    if (newIndex != _currentIndex && newIndex >= 0) {
+      _currentIndex = newIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          final targetOffset = (newIndex * 56.0) - 160.0;
+          _scrollController.animateTo(
+            targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
     }
 
     return Scaffold(
-      backgroundColor: context.yyBgBase,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 背景
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topCenter,
-                  radius: 1.5,
-                  colors: [bgColor, context.yyBgBase],
+          // Blurred cover background
+          if (yyBuildCoverImageProvider(song.coverUrl, filePath: song.filePath)
+              case final provider?)
+            Positioned.fill(
+              child: Image(
+                image: provider,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [accent.withValues(alpha: 0.6), Colors.black],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [accent.withValues(alpha: 0.6), Colors.black],
+                  ),
                 ),
               ),
             ),
-          ),
+          // Blur + dark overlay
           Positioned.fill(
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-              child: Container(color: (isDark ? Colors.black : Colors.white).withValues(alpha: isDark ? 0.4 : 0.5)),
+              child: Container(color: Colors.black.withValues(alpha: 0.4)),
             ),
           ),
-          // 主内容
+          // Main content
           SafeArea(
             child: Column(
               children: [
-                // 顶部栏
+                // Top bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: Icon(CupertinoIcons.chevron_down,
-                            color: context.yyTextPrimary, size: 22),
+                        icon: const Icon(
+                          CupertinoIcons.chevron_down,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                       Expanded(
                         child: Column(
                           children: [
                             Text(
                               song.title,
-                              style: TextStyle(
-                                color: context.yyTextPrimary,
-                                fontSize: 16,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 2),
                             Text(
                               song.artist,
                               style: TextStyle(
-                                color: context.yyTextSecondary,
+                                color: Colors.white.withValues(alpha: 0.6),
                                 fontSize: 12,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                      // 手动搜索按钮
+                      // Refresh button
                       IconButton(
-                        onPressed: _isFetching ? null : () {
-                          _autoFetchLyrics(
-                            song.title, song.artist, song.album, song.duration, song.id,
-                            force: true,
-                          );
-                        },
+                        onPressed: _isFetching
+                            ? null
+                            : () {
+                                _autoFetchLyrics(
+                                  song.title,
+                                  song.artist,
+                                  song.album,
+                                  song.duration,
+                                  song.id,
+                                  force: true,
+                                );
+                              },
                         icon: _isFetching
                             ? const SizedBox(
-                                width: 18, height: 18,
+                                width: 18,
+                                height: 18,
                                 child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: YYColors.accentPrimary),
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
-                            : Icon(CupertinoIcons.search,
-                                color: context.yyTextSecondary, size: 20),
+                            : Icon(
+                                CupertinoIcons.search,
+                                color: Colors.white.withValues(alpha: 0.6),
+                                size: 20,
+                              ),
                       ),
                     ],
                   ),
                 ),
-                // 歌词区域
+                // Lyrics area
                 Expanded(
                   child: _isFetching
                       ? Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const CircularProgressIndicator(color: YYColors.accentPrimary),
+                              const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
                               const SizedBox(height: 16),
-                              Text('正在搜索歌词…',
-                                  style: TextStyle(color: context.yyTextSecondary, fontSize: 14)),
+                              Text(
+                                '正在搜索歌词...',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  fontSize: 14,
+                                ),
+                              ),
                             ],
                           ),
                         )
                       : lyrics.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(CupertinoIcons.quote_bubble,
-                                      size: 48, color: context.yyTextTertiary),
-                                  const SizedBox(height: 16),
-                                  Text('暂无歌词',
-                                      style: TextStyle(color: context.yyTextTertiary, fontSize: 16)),
-                                ],
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                CupertinoIcons.quote_bubble,
+                                size: 48,
+                                color: Colors.white.withValues(alpha: 0.3),
                               ),
-                            )
-                          : LyricView(lyrics: lyrics),
+                              const SizedBox(height: 16),
+                              Text(
+                                '暂无歌词',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(vertical: 120),
+                          itemCount: lyrics.length,
+                          itemBuilder: (context, index) {
+                            final line = lyrics[index];
+                            final isCurrent = index == _currentIndex;
+
+                            return GestureDetector(
+                              onTap: () {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .seek(line.time);
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  line.text,
+                                  style: TextStyle(
+                                    fontSize: isCurrent ? 24 : 18,
+                                    fontWeight: isCurrent
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isCurrent
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.4),
+                                    height: 1.4,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -171,9 +295,13 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     );
   }
 
-  /// 自动获取歌词
+  /// Auto-fetch lyrics
   Future<void> _autoFetchLyrics(
-    String title, String artist, String album, Duration? duration, String songId, {
+    String title,
+    String artist,
+    String album,
+    Duration? duration,
+    String songId, {
     bool force = false,
   }) async {
     if (_isFetching) return;
@@ -192,16 +320,16 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
 
       if (lrc != null && lrc.isNotEmpty && mounted) {
         setState(() => _fetchedLyrics = lrc);
-        // 持久化到数据库
+        // Persist to database
         try {
           final db = ref.read(musicDatabaseProvider);
           await db.updateSongLyrics(songId, lrc);
         } catch (_) {
-          // 非致命错误
+          // Non-fatal
         }
       }
     } catch (_) {
-      // 静默失败
+      // Silent failure
     } finally {
       if (mounted) setState(() => _isFetching = false);
     }

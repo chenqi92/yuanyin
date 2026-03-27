@@ -13,7 +13,10 @@ class NativeTabBarMetrics {
   final double tabBarHeight;
   final double safeAreaBottom;
 
-  double get totalHeight => tabBarHeight;
+  double get totalHeight {
+    if (tabBarHeight > 60) return tabBarHeight;
+    return tabBarHeight + safeAreaBottom;
+  }
 
   NativeTabBarMetrics copyWith({double? tabBarHeight, double? safeAreaBottom}) {
     return NativeTabBarMetrics(
@@ -115,7 +118,9 @@ class NativeTabBarService {
   }
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
-    debugPrint('[NativeTabBarService] Received: ${call.method}, args: ${call.arguments}');
+    debugPrint(
+      '[NativeTabBarService] Received: ${call.method}, args: ${call.arguments}',
+    );
     switch (call.method) {
       case 'onTabSelected':
         final index = call.arguments as int;

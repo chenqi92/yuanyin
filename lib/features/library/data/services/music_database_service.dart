@@ -51,6 +51,19 @@ class MusicDatabaseService {
     return songs;
   }
 
+  Future<MusicItem?> getSongById(String songId) async {
+    final box = await _openBox;
+    final map = box.get(songId);
+    if (map is! Map) return null;
+
+    try {
+      return MusicItem.fromMap(map);
+    } catch (e) {
+      _log.w('读取歌曲失败: $songId - $e');
+      return null;
+    }
+  }
+
   /// 按源 ID 获取歌曲
   Future<List<MusicItem>> getSongsBySource(String sourceId) async {
     final all = await getAllSongs();
@@ -97,7 +110,14 @@ class MusicDatabaseService {
       if (song.year != null) albumMap[key]!.year = song.year;
     }
     return albumMap.values
-        .map((a) => AlbumInfo(name: a.name, artist: a.artist, songCount: a.songCount, year: a.year))
+        .map(
+          (a) => AlbumInfo(
+            name: a.name,
+            artist: a.artist,
+            songCount: a.songCount,
+            year: a.year,
+          ),
+        )
         .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
   }
@@ -138,10 +158,14 @@ class MusicDatabaseService {
     if (query.isEmpty) return [];
     final q = query.toLowerCase();
     final all = await getAllSongs();
-    return all.where((s) =>
-        s.title.toLowerCase().contains(q) ||
-        s.artist.toLowerCase().contains(q) ||
-        s.album.toLowerCase().contains(q)).toList();
+    return all
+        .where(
+          (s) =>
+              s.title.toLowerCase().contains(q) ||
+              s.artist.toLowerCase().contains(q) ||
+              s.album.toLowerCase().contains(q),
+        )
+        .toList();
   }
 
   /// 记录最近播放
@@ -189,6 +213,7 @@ class MusicDatabaseService {
       albumCount: albums.length,
     );
   }
+
   /// 更新歌曲歌词
   Future<void> updateSongLyrics(String songId, String lyrics) async {
     final box = await _openBox;
@@ -228,7 +253,12 @@ class AlbumInfo {
   final String artist;
   final int songCount;
   final int? year;
-  const AlbumInfo({required this.name, required this.artist, required this.songCount, this.year});
+  const AlbumInfo({
+    required this.name,
+    required this.artist,
+    required this.songCount,
+    this.year,
+  });
 }
 
 /// 流派信息
@@ -243,5 +273,9 @@ class LibraryStats {
   final int songCount;
   final int artistCount;
   final int albumCount;
-  const LibraryStats({required this.songCount, required this.artistCount, required this.albumCount});
+  const LibraryStats({
+    required this.songCount,
+    required this.artistCount,
+    required this.albumCount,
+  });
 }

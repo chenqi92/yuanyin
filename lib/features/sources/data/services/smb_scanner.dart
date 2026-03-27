@@ -17,31 +17,71 @@ class SynologyLoginResult {
   final String? errorMessage;
 
   const SynologyLoginResult.success(this.sid, {this.deviceId})
-      : status = SynologyLoginStatus.success,
-        errorMessage = null;
+    : status = SynologyLoginStatus.success,
+      errorMessage = null;
 
   const SynologyLoginResult.otpRequired()
-      : status = SynologyLoginStatus.otpRequired,
-        sid = null,
-        deviceId = null,
-        errorMessage = '需要二级验证码';
+    : status = SynologyLoginStatus.otpRequired,
+      sid = null,
+      deviceId = null,
+      errorMessage = '需要二级验证码';
 
   const SynologyLoginResult.failed(this.errorMessage)
-      : status = SynologyLoginStatus.failed,
-        sid = null,
-        deviceId = null;
+    : status = SynologyLoginStatus.failed,
+      sid = null,
+      deviceId = null;
 }
 
 /// 支持的音频扩展名
 const _audioExts = {
-  '.mp3', '.flac', '.m4a', '.aac', '.wav', '.ogg', '.opus',
-  '.ape', '.wma', '.aiff', '.aif',
+  '.mp3',
+  '.flac',
+  '.m4a',
+  '.aac',
+  '.wav',
+  '.ogg',
+  '.opus',
+  '.ape',
+  '.wma',
+  '.aiff',
+  '.aif',
+  '.tta',
+  '.dsf',
+  '.dff',
+  '.mka',
+  '.wv',
+  '.ncm',
 };
+
+const _coverNames = {
+  'folder.jpg': 0,
+  'folder.jpeg': 0,
+  'folder.png': 0,
+  'folder.webp': 0,
+  'cover.jpg': 1,
+  'cover.jpeg': 1,
+  'cover.png': 1,
+  'cover.webp': 1,
+  'front.jpg': 2,
+  'front.jpeg': 2,
+  'front.png': 2,
+  'front.webp': 2,
+  'album.jpg': 3,
+  'album.jpeg': 3,
+  'album.png': 3,
+  'album.webp': 3,
+  'artwork.jpg': 4,
+  'artwork.jpeg': 4,
+  'artwork.png': 4,
+  'artwork.webp': 4,
+};
+
+const _imageExts = {'.jpg', '.jpeg', '.png', '.webp'};
 
 /// SMB 网络扫描器
 ///
 /// 通过自建 API 代理来列举 SMB 共享目录（因为 Flutter 不直接支持 SMB 协议）。
-/// 
+///
 /// 两种工作模式:
 /// 1. **网关代理模式**: 需要在 NAS 上运行一个简单的 HTTP 代理来列举 SMB 文件
 /// 2. **直接 URL 模式**: 如果 NAS 暴露了 HTTP 接口（如群晖 FileStation API）
@@ -70,10 +110,19 @@ class SmbScanner {
     int port = 5000,
     required String sid,
     required String folderPath,
+    bool useSsl = false,
     void Function(int count, String currentFile)? onProgress,
   }) async {
     final songs = <MusicItem>[];
-    await _scanSynologyDir(host, port, sid, folderPath, songs, onProgress);
+    await _scanSynologyDir(
+      host,
+      port,
+      sid,
+      folderPath,
+      songs,
+      onProgress,
+      useSsl,
+    );
     _log.i('群晖扫描完成: $folderPath, 共 ${songs.length} 首');
     return songs;
   }
@@ -138,9 +187,7 @@ class SmbScanner {
       }
 
       _log.w('群晖登录失败: ${response.data}');
-      return SynologyLoginResult.failed(
-        _synologyErrorMessage(errorCode),
-      );
+      return SynologyLoginResult.failed(_synologyErrorMessage(errorCode));
     } on DioException catch (e) {
       return SynologyLoginResult.failed(_friendlyError(e));
     } catch (e) {
@@ -151,15 +198,24 @@ class SmbScanner {
 
   String _synologyErrorMessage(dynamic code) {
     switch (code) {
-      case 400: return '用户名或密码错误';
-      case 401: return '账户已被停用';
-      case 402: return '权限不足';
-      case 403: return '需要二级验证码';
-      case 404: return '二级验证码错误';
-      case 406: return 'OTP 强制且未启用';
-      case 407: return '二级验证码有误，请重试';
-      case null: return '登录失败（服务器返回未知错误）';
-      default: return '登录失败 (错误码: $code)';
+      case 400:
+        return '用户名或密码错误';
+      case 401:
+        return '账户已被停用';
+      case 402:
+        return '权限不足';
+      case 403:
+        return '需要二级验证码';
+      case 404:
+        return '二级验证码错误';
+      case 406:
+        return 'OTP 强制且未启用';
+      case 407:
+        return '二级验证码有误，请重试';
+      case null:
+        return '登录失败（服务器返回未知错误）';
+      default:
+        return '登录失败 (错误码: $code)';
     }
   }
 
@@ -177,8 +233,13 @@ class SmbScanner {
     String? deviceId,
   }) async {
     final result = await synologyLogin(
-      host: host, port: port, username: username, password: password,
-      useSsl: useSsl, otpCode: otpCode, deviceId: deviceId,
+      host: host,
+      port: port,
+      username: username,
+      password: password,
+      useSsl: useSsl,
+      otpCode: otpCode,
+      deviceId: deviceId,
     );
     switch (result.status) {
       case SynologyLoginStatus.success:
@@ -202,12 +263,15 @@ class SmbScanner {
     try {
       final protocol = useSsl ? 'https' : 'http';
       final url = '$protocol://$host:$port/webapi/entry.cgi';
-      final response = await _dio.get(url, queryParameters: {
-        'api': 'SYNO.FileStation.List',
-        'version': '2',
-        'method': 'list_share',
-        '_sid': sid,
-      });
+      final response = await _dio.get(
+        url,
+        queryParameters: {
+          'api': 'SYNO.FileStation.List',
+          'version': '2',
+          'method': 'list_share',
+          '_sid': sid,
+        },
+      );
 
       if (response.data is Map && response.data['success'] == true) {
         final shares = response.data['data']['shares'] as List? ?? [];
@@ -233,21 +297,26 @@ class SmbScanner {
     try {
       final protocol = useSsl ? 'https' : 'http';
       final url = '$protocol://$host:$port/webapi/entry.cgi';
-      final response = await _dio.get(url, queryParameters: {
-        'api': 'SYNO.FileStation.List',
-        'version': '2',
-        'method': 'list',
-        'folder_path': folderPath,
-        'sort_by': 'name',
-        'sort_direction': 'asc',
-        '_sid': sid,
-      });
+      final response = await _dio.get(
+        url,
+        queryParameters: {
+          'api': 'SYNO.FileStation.List',
+          'version': '2',
+          'method': 'list',
+          'folder_path': folderPath,
+          'sort_by': 'name',
+          'sort_direction': 'asc',
+          '_sid': sid,
+        },
+      );
 
       if (response.data is Map && response.data['success'] == true) {
         final files = response.data['data']['files'] as List? ?? [];
         return files
             .where((f) => f['isdir'] == true)
-            .map<({String name, String path})>((f) => (name: f['name'] as String, path: f['path'] as String))
+            .map<({String name, String path})>(
+              (f) => (name: f['name'] as String, path: f['path'] as String),
+            )
             .toList();
       }
       return [];
@@ -260,7 +329,8 @@ class SmbScanner {
   String _friendlyError(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout) return '连接超时，请检查地址和端口';
     if (e.type == DioExceptionType.connectionError) return '无法连接，请检查网络和地址';
-    if (e.type == DioExceptionType.unknown && e.error.toString().contains('HandshakeException')) {
+    if (e.type == DioExceptionType.unknown &&
+        e.error.toString().contains('HandshakeException')) {
       return 'SSL 证书验证失败，请检查 SSL 设置或尝试关闭 SSL';
     }
     if (e.response?.statusCode == 403) return '访问被拒绝';
@@ -276,23 +346,33 @@ class SmbScanner {
     String folderPath,
     List<MusicItem> songs,
     void Function(int count, String)? onProgress,
+    bool useSsl,
   ) async {
     try {
-      final url = 'http://$host:$port/webapi/entry.cgi';
+      final protocol = useSsl ? 'https' : 'http';
+      final url = '$protocol://$host:$port/webapi/entry.cgi';
       int offset = 0;
       const limit = 500;
+      final directorySongs = <({MusicItem song, String stem})>[];
+      final subDirectories = <String>[];
+      final namedCoverUrls = <String, String>{};
+      String? folderCoverUrl;
+      var folderCoverPriority = 999;
 
       while (true) {
-        final response = await _dio.get(url, queryParameters: {
-          'api': 'SYNO.FileStation.List',
-          'version': '2',
-          'method': 'list',
-          'folder_path': folderPath,
-          'additional': 'size,type',
-          'limit': '$limit',
-          'offset': '$offset',
-          '_sid': sid,
-        });
+        final response = await _dio.get(
+          url,
+          queryParameters: {
+            'api': 'SYNO.FileStation.List',
+            'version': '2',
+            'method': 'list',
+            'folder_path': folderPath,
+            'additional': 'size,type',
+            'limit': '$limit',
+            'offset': '$offset',
+            '_sid': sid,
+          },
+        );
 
         if (response.data is! Map || response.data['success'] != true) break;
 
@@ -306,28 +386,69 @@ class SmbScanner {
           final size = file['additional']?['size'] as int?;
 
           if (isDir) {
-            await _scanSynologyDir(host, port, sid, path, songs, onProgress);
-          } else if (_isAudio(name)) {
-            // 构造流播放 URL
-            final streamUrl = 'http://$host:$port/webapi/entry.cgi?'
-                'api=SYNO.FileStation.Download&version=2&method=download'
-                '&path=${Uri.encodeComponent(path)}&_sid=$sid';
+            subDirectories.add(path);
+            continue;
+          }
 
-            songs.add(MusicItem(
-              id: path.hashCode.toRadixString(36),
-              title: _titleFromName(name),
-              artist: _artistFromName(name),
-              album: folderPath.split('/').last,
-              filePath: streamUrl,
-              fileSize: size,
-              format: _extOf(name),
+          final fileUrl =
+              '$protocol://$host:$port/webapi/entry.cgi?'
+              'api=SYNO.FileStation.Download&version=2&method=download'
+              '&path=${Uri.encodeComponent(path)}&_sid=$sid';
+
+          if (_isImageFile(name)) {
+            namedCoverUrls[_stemOfName(name).toLowerCase()] = fileUrl;
+            if (_isCoverImage(name)) {
+              final priority = _coverPriority(name);
+              if (priority < folderCoverPriority) {
+                folderCoverPriority = priority;
+                folderCoverUrl = fileUrl;
+              }
+            }
+          } else if (_isAudio(name)) {
+            directorySongs.add((
+              song: MusicItem(
+                id: path.hashCode.toRadixString(36),
+                title: _titleFromName(name),
+                artist: _artistFromName(name),
+                album: folderPath.split('/').last,
+                filePath: fileUrl,
+                fileSize: size,
+                format: _extOf(name),
+              ),
+              stem: _stemOfName(name).toLowerCase(),
             ));
-            onProgress?.call(songs.length, name);
           }
         }
 
         if (files.length < limit) break;
         offset += limit;
+      }
+
+      songs.addAll(
+        directorySongs.map((entry) {
+          final coverUrl = namedCoverUrls[entry.stem] ?? folderCoverUrl;
+          return coverUrl == null
+              ? entry.song
+              : entry.song.copyWith(coverUrl: coverUrl);
+        }),
+      );
+      for (var index = 0; index < directorySongs.length; index++) {
+        onProgress?.call(
+          songs.length - directorySongs.length + index + 1,
+          directorySongs[index].song.title,
+        );
+      }
+
+      for (final subDirectory in subDirectories) {
+        await _scanSynologyDir(
+          host,
+          port,
+          sid,
+          subDirectory,
+          songs,
+          onProgress,
+          useSsl,
+        );
       }
     } catch (e) {
       _log.w('群晖目录扫描失败: $folderPath - $e');
@@ -339,14 +460,36 @@ class SmbScanner {
     return _audioExts.any((ext) => lower.endsWith(ext));
   }
 
+  bool _isImageFile(String name) {
+    final lower = name.toLowerCase();
+    return _imageExts.any((ext) => lower.endsWith(ext));
+  }
+
+  bool _isCoverImage(String name) =>
+      _coverNames.containsKey(name.toLowerCase());
+
+  int _coverPriority(String name) => _coverNames[name.toLowerCase()] ?? 999;
+
+  String _stemOfName(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot <= 0) return name;
+    return name.substring(0, dot);
+  }
+
   String _titleFromName(String name) {
-    final noExt = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
-    if (noExt.contains(' - ')) return noExt.split(' - ').sublist(1).join(' - ').trim();
+    final noExt = name.contains('.')
+        ? name.substring(0, name.lastIndexOf('.'))
+        : name;
+    if (noExt.contains(' - ')) {
+      return noExt.split(' - ').sublist(1).join(' - ').trim();
+    }
     return noExt;
   }
 
   String _artistFromName(String name) {
-    final noExt = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+    final noExt = name.contains('.')
+        ? name.substring(0, name.lastIndexOf('.'))
+        : name;
     if (noExt.contains(' - ')) return noExt.split(' - ').first.trim();
     return '未知艺术家';
   }
