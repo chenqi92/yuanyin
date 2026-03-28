@@ -25,37 +25,17 @@ class SettingsPage extends ConsumerWidget {
             const SliverToBoxAdapter(
               child: YYPageHeader(eyebrow: '系统与播放', title: '设置'),
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: YYMetricBand(
-                  items: [
-                    YYMetricBandItem(
-                      label: '引擎',
-                      value: settings.engine == 'media_kit' ? 'FFmpeg' : '原生',
-                      tint: YYColors.accentPrimary,
-                    ),
-                    YYMetricBandItem(
-                      label: '无缝',
-                      value: settings.gaplessPlayback ? '开启' : '关闭',
-                      tint: YYColors.accentSecondary,
-                    ),
-                    YYMetricBandItem(
-                      label: '歌词',
-                      value: settings.showLyrics ? '开启' : '关闭',
-                      tint: YYColors.accentTertiary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: YYSectionTitle(title: '资料')),
+            const SliverToBoxAdapter(child: YYSectionTitle(title: '媒体源')),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: YYPanel(
-                  radius: 26,
+                child: YYLiquidGlass(
+                  thin: true,
+                  radius: 28,
                   padding: EdgeInsets.zero,
+                  color: context.isDark
+                      ? context.yyBgElevated.withValues(alpha: 0.80)
+                      : Colors.white.withValues(alpha: 0.72),
                   child: Column(
                     children: [
                       _SettingsNavRow(
@@ -81,9 +61,13 @@ class SettingsPage extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: YYPanel(
-                  radius: 26,
+                child: YYLiquidGlass(
+                  thin: true,
+                  radius: 28,
                   padding: EdgeInsets.zero,
+                  color: context.isDark
+                      ? context.yyBgElevated.withValues(alpha: 0.80)
+                      : Colors.white.withValues(alpha: 0.72),
                   child: Column(
                     children: [
                       _SettingsSwitchRow(
@@ -159,13 +143,17 @@ class SettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: YYSectionTitle(title: '音效')),
+            const SliverToBoxAdapter(child: YYSectionTitle(title: '显示与音效')),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: YYPanel(
-                  radius: 26,
+                child: YYLiquidGlass(
+                  thin: true,
+                  radius: 28,
                   padding: EdgeInsets.zero,
+                  color: context.isDark
+                      ? context.yyBgElevated.withValues(alpha: 0.80)
+                      : Colors.white.withValues(alpha: 0.72),
                   child: Column(
                     children: [
                       _SettingsNavRow(
@@ -193,9 +181,13 @@ class SettingsPage extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: YYPanel(
-                  radius: 26,
+                child: YYLiquidGlass(
+                  thin: true,
+                  radius: 28,
                   padding: EdgeInsets.zero,
+                  color: context.isDark
+                      ? context.yyBgElevated.withValues(alpha: 0.80)
+                      : Colors.white.withValues(alpha: 0.72),
                   child: Column(
                     children: [
                       _SettingsInfoRow(
@@ -235,45 +227,26 @@ class SettingsPage extends ConsumerWidget {
   }
 
   void _showClearCacheDialog(BuildContext context) {
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      useRootNavigator: true,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.yyBgElevated,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text(
-          '清除缓存',
-          style: TextStyle(
-            color: context.yyTextPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          '这会清除最近播放记录和临时文件，不会删除你的音乐源配置。',
-          style: TextStyle(
-            color: context.yyTextSecondary,
-            fontSize: 14,
-            height: 1.45,
-          ),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('清除缓存'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('这会清除最近播放记录和临时文件，不会删除你的音乐源配置。'),
         ),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('取消', style: TextStyle(color: context.yyTextTertiary)),
+            child: const Text('取消'),
           ),
-          TextButton(
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             onPressed: () async {
               Navigator.pop(ctx);
               await _performClearCache(context);
             },
-            child: Text(
-              '清除',
-              style: TextStyle(
-                color: CupertinoColors.destructiveRed.resolveFrom(context),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: const Text('清除'),
           ),
         ],
       ),
@@ -531,7 +504,7 @@ class _EngineRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '播放引擎',
+                  '解码方式',
                   style: TextStyle(
                     color: context.yyTextPrimary,
                     fontSize: 16,

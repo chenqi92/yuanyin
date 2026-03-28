@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../../app/theme/theme.dart';
+import '../../../../shared/widgets/gradient_cover.dart';
+import '../../../../shared/widgets/modern_music_ui.dart';
 import '../../../player/domain/entities/music_item.dart';
 import '../../../player/presentation/providers/player_provider.dart';
 import '../../data/services/music_database_service.dart';
@@ -125,7 +127,9 @@ class _ManualMusicScraperPageState
   }
 
   void _sortByDurationMatch(
-      List<MusicScraperItem> items, Map<ScraperType, int> sourcePriorities) {
+    List<MusicScraperItem> items,
+    Map<ScraperType, int> sourcePriorities,
+  ) {
     final hasMusicDuration = _musicDurationMs > 0;
     items.sort((a, b) {
       if (hasMusicDuration) {
@@ -152,7 +156,9 @@ class _ManualMusicScraperPageState
   double _getMatchPercent(MusicScraperItem item) {
     if (_musicDurationMs <= 0 ||
         item.durationMs == null ||
-        item.durationMs == 0) return 0;
+        item.durationMs == 0) {
+      return 0;
+    }
     final diff = _getDurationDiff(item);
     if (diff <= 5000) return 100;
     if (diff >= 60000) return 0;
@@ -162,7 +168,9 @@ class _ManualMusicScraperPageState
   String _formatDurationDiff(MusicScraperItem item) {
     if (_musicDurationMs <= 0 ||
         item.durationMs == null ||
-        item.durationMs == 0) return '';
+        item.durationMs == 0) {
+      return '';
+    }
     final diffSec = (item.durationMs! - _musicDurationMs) ~/ 1000;
     if (diffSec.abs() < 1) return '\u00b10s';
     return diffSec > 0 ? '+${diffSec}s' : '${diffSec}s';
@@ -194,8 +202,7 @@ class _ManualMusicScraperPageState
       LyricScraperResult? lyrics;
       if (item.source.supportsLyrics) {
         final sources = await manager.getSources();
-        final source =
-            sources.where((s) => s.type == item.source).firstOrNull;
+        final source = sources.where((s) => s.type == item.source).firstOrNull;
         if (source != null) {
           final scraper = await manager.getScraper(source.id);
           if (scraper != null) {
@@ -207,7 +214,9 @@ class _ManualMusicScraperPageState
       CoverScraperResult? cover;
       if (item.coverUrl != null) {
         cover = CoverScraperResult(
-            source: item.source, coverUrl: item.coverUrl!);
+          source: item.source,
+          coverUrl: item.coverUrl!,
+        );
       }
 
       setState(() {
@@ -227,14 +236,18 @@ class _ManualMusicScraperPageState
   Future<void> _confirmAndScrape() async {
     if (_selectedDetail == null &&
         _selectedCover == null &&
-        _selectedLyrics == null) return;
+        _selectedLyrics == null) {
+      return;
+    }
 
     final filePath = widget.music.filePath;
     if (filePath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('无法获取文件路径'), backgroundColor: Colors.red),
+            content: Text('无法获取文件路径'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
@@ -246,21 +259,27 @@ class _ManualMusicScraperPageState
       final musicDir = p.dirname(filePath);
       final baseName = p.basenameWithoutExtension(filePath);
       Uint8List? coverData;
+      String? savedCoverPath;
+      String? savedLyrics;
 
       if (_downloadCover && _selectedCover != null) {
         coverData = await _downloadCoverData();
         if (coverData != null) {
-          await _saveCoverFile(musicDir, baseName, coverData);
+          savedCoverPath = await _saveCoverFile(musicDir, baseName, coverData);
         }
       }
 
       if (_downloadLyrics && (_selectedLyrics?.hasLyrics ?? false)) {
-        await _saveLyricsFile(musicDir, baseName);
+        savedLyrics = await _saveLyricsFile(musicDir, baseName);
       }
 
       if (_selectedDetail != null) {
-        await _syncMetadataToDatabase();
+        await _syncMetadataToDatabase(savedCoverPath, savedLyrics);
+      } else if (savedCoverPath != null || savedLyrics != null) {
+        await _syncMetadataToDatabase(savedCoverPath, savedLyrics);
       }
+
+      await ref.read(playerProvider.notifier).refreshCurrentSong();
 
       if (!mounted) return;
 
@@ -269,16 +288,16 @@ class _ManualMusicScraperPageState
           content: const Text('刮削完成'),
           backgroundColor: Colors.green[600],
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       Navigator.pop(context, true);
     } on Exception catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('刮削失败: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('刮削失败: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -301,48 +320,67 @@ class _ManualMusicScraperPageState
     }
   }
 
-  Future<void> _saveCoverFile(
-      String musicDir, String baseName, Uint8List coverData) async {
+  Future<String?> _saveCoverFile(
+    String musicDir,
+    String baseName,
+    Uint8List coverData,
+  ) async {
     try {
-      final ext =
-          _selectedCover!.coverUrl.contains('.png') ? 'png' : 'jpg';
-      final folderCoverPath = p.join(musicDir, 'folder.$ext');
-      final coverPath = File(folderCoverPath).existsSync()
-          ? p.join(musicDir, '$baseName-cover.$ext')
-          : folderCoverPath;
+      final ext = _selectedCover!.coverUrl.contains('.png') ? 'png' : 'jpg';
+      final coverPath = p.join(musicDir, '$baseName.$ext');
       await File(coverPath).writeAsBytes(coverData);
-    } on Exception catch (_) {}
+      return coverPath;
+    } on Exception catch (_) {
+      return null;
+    }
   }
 
-  Future<void> _saveLyricsFile(String musicDir, String baseName) async {
-    if (_selectedLyrics == null || !_selectedLyrics!.hasLyrics) return;
+  Future<String?> _saveLyricsFile(String musicDir, String baseName) async {
+    if (_selectedLyrics == null || !_selectedLyrics!.hasLyrics) {
+      return null;
+    }
     try {
       final lrcContent =
           _selectedLyrics!.lrcContent ?? _selectedLyrics!.plainText ?? '';
-      if (lrcContent.isEmpty) return;
+      if (lrcContent.isEmpty) {
+        return null;
+      }
       final lrcPath = p.join(musicDir, '$baseName.lrc');
       await File(lrcPath).writeAsString(lrcContent, encoding: utf8);
-    } on Exception catch (_) {}
+      return lrcContent;
+    } on Exception catch (_) {
+      return null;
+    }
   }
 
-  Future<void> _syncMetadataToDatabase() async {
-    if (_selectedDetail == null) return;
+  Future<void> _syncMetadataToDatabase(
+    String? savedCoverPath,
+    String? lyricsText,
+  ) async {
     try {
       final db = MusicDatabaseService();
       final updated = widget.music.copyWith(
-        title: widget.music.title.isEmpty ? _selectedDetail?.title : null,
-        artist:
-            widget.music.artist.isEmpty ? _selectedDetail?.artist : null,
-        album:
-            widget.music.album.isEmpty ? _selectedDetail?.album : null,
+        title: widget.music.title.isEmpty
+            ? _selectedDetail?.title
+            : widget.music.title,
+        artist: widget.music.artist.isEmpty
+            ? _selectedDetail?.artist
+            : widget.music.artist,
+        album: widget.music.album.isEmpty
+            ? _selectedDetail?.album
+            : widget.music.album,
         year: widget.music.year ?? _selectedDetail?.year,
-        trackNumber:
-            widget.music.trackNumber ?? _selectedDetail?.trackNumber,
+        trackNumber: widget.music.trackNumber ?? _selectedDetail?.trackNumber,
         genre: (widget.music.genre == null || widget.music.genre!.isEmpty)
             ? _selectedDetail?.genres?.join(', ')
-            : null,
+            : widget.music.genre,
+        coverUrl: savedCoverPath ?? widget.music.coverUrl,
+        lyrics: lyricsText ?? widget.music.lyrics,
       );
       await db.updateSong(updated);
+      if (lyricsText != null && lyricsText.isNotEmpty) {
+        await db.updateSongLyrics(widget.music.id, lyricsText);
+      }
     } on Exception catch (_) {}
   }
 
@@ -359,111 +397,109 @@ class _ManualMusicScraperPageState
         ),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          minSize: 0,
-          child: Icon(CupertinoIcons.chevron_back,
-              color: YYColors.accentPrimary, size: 22),
+          minimumSize: Size.zero,
+          child: Icon(
+            CupertinoIcons.chevron_back,
+            color: YYColors.accentPrimary,
+            size: 22,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        middle: Text('手动搜索',
-            style: TextStyle(
-                color: context.yyTextPrimary, fontWeight: FontWeight.w600)),
+        middle: Text(
+          '手动搜索',
+          style: TextStyle(
+            color: context.yyTextPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         trailing: _totalResultCount > 0
-            ? Text('$_totalResultCount 个结果',
-                style: TextStyle(
-                    color: context.yyTextTertiary, fontSize: 13))
+            ? Text(
+                '$_totalResultCount 个结果',
+                style: TextStyle(color: context.yyTextTertiary, fontSize: 13),
+              )
             : null,
       ),
       child: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _buildCompactFileInfo(context),
-            _buildSearchBar(context),
-            Expanded(child: _buildSearchResults(context)),
-            if (_selectedItem != null) _buildSelectionPanel(context),
-          ],
+        child: YYScenicBackground(
+          child: Column(
+            children: [
+              _buildCompactFileInfo(context),
+              _buildSearchBar(context),
+              Expanded(child: _buildSearchResults(context)),
+              if (_selectedItem != null) _buildSelectionPanel(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildCompactFileInfo(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: context.isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              color: YYColors.accentPrimary.withValues(alpha: 0.1),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: YYLiquidGlass(
+        thin: true,
+        radius: 22,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        color: context.yyBgElevated.withValues(alpha: 0.72),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42,
+              height: 42,
+              child: GradientCover(
+                seed: '${widget.music.title}_${widget.music.artist}',
+                coverUrl: widget.music.coverUrl,
+                filePath: widget.music.filePath,
+                size: 42,
+                borderRadius: 12,
+              ),
             ),
-            child: const Icon(CupertinoIcons.music_note,
-                color: YYColors.accentPrimary, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.music.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.yyTextPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.music.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.yyTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    if (widget.music.artist.isNotEmpty)
-                      Flexible(
-                        child: Text(
+                  const SizedBox(height: 3),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (widget.music.artist.isNotEmpty)
+                        Text(
                           widget.music.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: context.yyTextTertiary,
-                              fontSize: 12),
-                        ),
-                      ),
-                    if (_musicDurationMs > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: YYColors.accentPrimary
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _formatDuration(_musicDurationMs),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: YYColors.accentPrimary,
-                            fontWeight: FontWeight.w500,
+                            color: context.yyTextTertiary,
+                            fontSize: 12,
                           ),
                         ),
-                      ),
+                      if (_musicDurationMs > 0)
+                        YYTag(
+                          text: _formatDuration(_musicDurationMs),
+                          color: YYColors.accentPrimary,
+                          icon: CupertinoIcons.time,
+                        ),
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -471,73 +507,96 @@ class _ManualMusicScraperPageState
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: CupertinoTextField(
-              controller: _titleController,
-              placeholder: '歌曲名称',
-              prefix: Padding(
-                padding: const EdgeInsets.only(left: 10),
-                child: Icon(CupertinoIcons.music_note,
-                    size: 16, color: context.yyTextTertiary),
+      child: YYLiquidGlass(
+        thin: true,
+        radius: 24,
+        padding: const EdgeInsets.all(10),
+        color: context.yyBgElevated.withValues(alpha: 0.70),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: CupertinoTextField(
+                controller: _titleController,
+                placeholder: '歌曲名称',
+                prefix: Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Icon(
+                    CupertinoIcons.music_note,
+                    size: 16,
+                    color: context.yyTextTertiary,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: context.isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                style: TextStyle(color: context.yyTextPrimary, fontSize: 14),
+                placeholderStyle: TextStyle(
+                  color: context.yyTextTertiary,
+                  fontSize: 14,
+                ),
+                onSubmitted: (_) => _search(),
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              decoration: BoxDecoration(
-                color: context.isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              style: TextStyle(
-                  color: context.yyTextPrimary, fontSize: 14),
-              placeholderStyle: TextStyle(
-                  color: context.yyTextTertiary, fontSize: 14),
-              onSubmitted: (_) => _search(),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: CupertinoTextField(
-              controller: _artistController,
-              placeholder: '艺术家',
-              prefix: Padding(
-                padding: const EdgeInsets.only(left: 10),
-                child: Icon(CupertinoIcons.person,
-                    size: 16, color: context.yyTextTertiary),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: CupertinoTextField(
+                controller: _artistController,
+                placeholder: '艺术家',
+                prefix: Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Icon(
+                    CupertinoIcons.person,
+                    size: 16,
+                    color: context.yyTextTertiary,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: context.isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                style: TextStyle(color: context.yyTextPrimary, fontSize: 14),
+                placeholderStyle: TextStyle(
+                  color: context.yyTextTertiary,
+                  fontSize: 14,
+                ),
+                onSubmitted: (_) => _search(),
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              decoration: BoxDecoration(
-                color: context.isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              style: TextStyle(
-                  color: context.yyTextPrimary, fontSize: 14),
-              placeholderStyle: TextStyle(
-                  color: context.yyTextTertiary, fontSize: 14),
-              onSubmitted: (_) => _search(),
             ),
-          ),
-          const SizedBox(width: 8),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            minSize: 42,
-            color: YYColors.accentPrimary,
-            borderRadius: BorderRadius.circular(10),
-            onPressed: _isSearching ? null : _search,
-            child: _isSearching
-                ? const CupertinoActivityIndicator(
-                    color: Colors.white, radius: 10)
-                : const Icon(CupertinoIcons.search,
-                    size: 18, color: Colors.white),
-          ),
-        ],
+            const SizedBox(width: 8),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(42, 42),
+              color: YYColors.accentPrimary,
+              borderRadius: BorderRadius.circular(14),
+              onPressed: _isSearching ? null : _search,
+              child: _isSearching
+                  ? const CupertinoActivityIndicator(
+                      color: Colors.white,
+                      radius: 10,
+                    )
+                  : const Icon(
+                      CupertinoIcons.search,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -546,7 +605,9 @@ class _ManualMusicScraperPageState
     if (_isSearching) {
       return Center(
         child: CupertinoActivityIndicator(
-            radius: 14, color: context.yyTextSecondary),
+          radius: 14,
+          color: context.yyTextSecondary,
+        ),
       );
     }
 
@@ -555,8 +616,11 @@ class _ManualMusicScraperPageState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(CupertinoIcons.exclamationmark_triangle,
-                size: 48, color: Colors.red[400]),
+            Icon(
+              CupertinoIcons.exclamationmark_triangle,
+              size: 48,
+              color: Colors.red[400],
+            ),
             const SizedBox(height: 16),
             Text(
               _errorMessage!,
@@ -567,8 +631,7 @@ class _ManualMusicScraperPageState
             CupertinoButton(
               color: YYColors.accentPrimary,
               onPressed: _search,
-              child: const Text('重试',
-                  style: TextStyle(color: Colors.white)),
+              child: const Text('重试', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -580,8 +643,11 @@ class _ManualMusicScraperPageState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(CupertinoIcons.search,
-                size: 48, color: context.yyTextTertiary),
+            Icon(
+              CupertinoIcons.search,
+              size: 48,
+              color: context.yyTextTertiary,
+            ),
             const SizedBox(height: 12),
             Text(
               '未找到结果',
@@ -594,8 +660,7 @@ class _ManualMusicScraperPageState
             const SizedBox(height: 4),
             Text(
               '尝试调整搜索关键词',
-              style: TextStyle(
-                  color: context.yyTextTertiary, fontSize: 13),
+              style: TextStyle(color: context.yyTextTertiary, fontSize: 13),
             ),
           ],
         ),
@@ -608,8 +673,7 @@ class _ManualMusicScraperPageState
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         final item = _searchResults[index];
-        final isSelected =
-            _selectedItem?.externalId == item.externalId;
+        final isSelected = _selectedItem?.externalId == item.externalId;
         return _buildResultCard(item, isSelected);
       },
     );
@@ -622,23 +686,16 @@ class _ManualMusicScraperPageState
 
     return GestureDetector(
       onTap: () => _selectItem(item),
-      child: Container(
+      child: YYLiquidGlass(
+        thin: true,
         margin: const EdgeInsets.only(bottom: 8),
+        radius: 20,
+        color: isSelected
+            ? YYColors.accentPrimary.withValues(
+                alpha: context.isDark ? 0.16 : 0.10,
+              )
+            : context.yyBgElevated.withValues(alpha: 0.68),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? YYColors.accentPrimary.withValues(
-                  alpha: context.isDark ? 0.15 : 0.08)
-              : (context.isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.white),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? YYColors.accentPrimary.withValues(alpha: 0.5)
-                : context.yySeparator,
-          ),
-        ),
         child: Row(
           children: [
             // Cover + source badge
@@ -659,16 +716,22 @@ class _ManualMusicScraperPageState
                         fit: BoxFit.cover,
                         width: 48,
                         height: 48,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Icon(CupertinoIcons.music_note,
-                              color: item.source.themeColor, size: 20),
+                        errorBuilder: (context, error, stackTrace) => Center(
+                          child: Icon(
+                            CupertinoIcons.music_note,
+                            color: item.source.themeColor,
+                            size: 20,
+                          ),
                         ),
                       ),
                     )
                   else
                     Center(
-                      child: Icon(CupertinoIcons.music_note,
-                          color: item.source.themeColor, size: 20),
+                      child: Icon(
+                        CupertinoIcons.music_note,
+                        color: item.source.themeColor,
+                        size: 20,
+                      ),
                     ),
                   Positioned(
                     right: 0,
@@ -682,8 +745,11 @@ class _ManualMusicScraperPageState
                           bottomRight: Radius.circular(8),
                         ),
                       ),
-                      child: Icon(item.source.icon,
-                          size: 9, color: Colors.white),
+                      child: Icon(
+                        item.source.icon,
+                        size: 9,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -709,22 +775,25 @@ class _ManualMusicScraperPageState
                   Text(
                     [
                       if (item.artist != null) item.artist!,
-                      if (item.album != null) item.album!
+                      if (item.album != null) item.album!,
                     ].join(' \u00b7 '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        color: context.yyTextTertiary, fontSize: 12),
+                      color: context.yyTextTertiary,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
-                          color: item.source.themeColor
-                              .withValues(alpha: 0.12),
+                          color: item.source.themeColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(
@@ -738,16 +807,20 @@ class _ManualMusicScraperPageState
                       ),
                       const SizedBox(width: 6),
                       if (item.durationText.isNotEmpty)
-                        Text(item.durationText,
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: context.yyTextTertiary)),
+                        Text(
+                          item.durationText,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: context.yyTextTertiary,
+                          ),
+                        ),
                       if (item.source.supportsLyrics) ...[
                         const SizedBox(width: 6),
-                        Icon(CupertinoIcons.text_quote,
-                            size: 11,
-                            color: Colors.cyan[
-                                context.isDark ? 300 : 700]),
+                        Icon(
+                          CupertinoIcons.text_quote,
+                          size: 11,
+                          color: Colors.cyan[context.isDark ? 300 : 700],
+                        ),
                       ],
                     ],
                   ),
@@ -761,13 +834,15 @@ class _ManualMusicScraperPageState
                 if (matchPercent > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: hasHighMatch
                           ? Colors.green.withValues(alpha: 0.15)
                           : (matchPercent >= 50
-                              ? Colors.orange.withValues(alpha: 0.15)
-                              : Colors.grey.withValues(alpha: 0.15)),
+                                ? Colors.orange.withValues(alpha: 0.15)
+                                : Colors.grey.withValues(alpha: 0.15)),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Column(
@@ -780,8 +855,8 @@ class _ManualMusicScraperPageState
                             color: hasHighMatch
                                 ? Colors.green
                                 : (matchPercent >= 50
-                                    ? Colors.orange
-                                    : Colors.grey),
+                                      ? Colors.orange
+                                      : Colors.grey),
                           ),
                         ),
                         if (durationDiff.isNotEmpty)
@@ -792,21 +867,27 @@ class _ManualMusicScraperPageState
                               color: hasHighMatch
                                   ? Colors.green
                                   : (matchPercent >= 50
-                                      ? Colors.orange
-                                      : Colors.grey),
+                                        ? Colors.orange
+                                        : Colors.grey),
                             ),
                           ),
                       ],
                     ),
                   )
                 else
-                  Icon(CupertinoIcons.chevron_right,
-                      size: 16, color: context.yyTextTertiary),
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 16,
+                    color: context.yyTextTertiary,
+                  ),
                 if (isSelected)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Icon(CupertinoIcons.checkmark_circle_fill,
-                        color: YYColors.accentPrimary, size: 20),
+                    child: Icon(
+                      CupertinoIcons.checkmark_circle_fill,
+                      color: YYColors.accentPrimary,
+                      size: 20,
+                    ),
                   ),
               ],
             ),
@@ -817,17 +898,17 @@ class _ManualMusicScraperPageState
   }
 
   Widget _buildSelectionPanel(BuildContext context) {
-    final hasContent = _selectedDetail != null ||
+    final hasContent =
+        _selectedDetail != null ||
         _selectedCover != null ||
         _selectedLyrics != null;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: context.yyBgElevated,
-        border: Border(
-          top: BorderSide(color: context.yySeparator, width: 0.5),
-        ),
-      ),
+    return YYLiquidGlass(
+      thin: true,
+      radius: 30,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.zero,
+      color: context.yyBgElevated.withValues(alpha: 0.80),
       child: SafeArea(
         top: false,
         child: Column(
@@ -835,7 +916,9 @@ class _ManualMusicScraperPageState
           children: [
             if (_isLoadingDetail)
               LinearProgressIndicator(
-                  color: YYColors.accentPrimary, minHeight: 2)
+                color: YYColors.accentPrimary,
+                minHeight: 2,
+              )
             else if (hasContent)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -849,33 +932,33 @@ class _ManualMusicScraperPageState
                           height: 44,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
-                            color: _selectedItem?.source.themeColor
-                                .withValues(alpha: 0.1),
+                            color: _selectedItem?.source.themeColor.withValues(
+                              alpha: 0.1,
+                            ),
                           ),
                           child: _selectedCover?.coverUrl != null
                               ? ClipRRect(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(8),
                                   child: Image.network(
                                     _selectedCover!.coverUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        Icon(
-                                      CupertinoIcons.music_note,
-                                      color: _selectedItem
-                                          ?.source.themeColor,
-                                    ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Icon(
+                                          CupertinoIcons.music_note,
+                                          color:
+                                              _selectedItem?.source.themeColor,
+                                        ),
                                   ),
                                 )
-                              : Icon(CupertinoIcons.music_note,
-                                  color:
-                                      _selectedItem?.source.themeColor),
+                              : Icon(
+                                  CupertinoIcons.music_note,
+                                  color: _selectedItem?.source.themeColor,
+                                ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 _selectedDetail?.title ??
@@ -893,39 +976,36 @@ class _ManualMusicScraperPageState
                               Row(
                                 children: [
                                   Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(
-                                            horizontal: 5,
-                                            vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: _selectedItem
-                                          ?.source.themeColor
+                                      color: _selectedItem?.source.themeColor
                                           .withValues(alpha: 0.12),
-                                      borderRadius:
-                                          BorderRadius.circular(3),
+                                      borderRadius: BorderRadius.circular(3),
                                     ),
                                     child: Text(
-                                      _selectedItem
-                                              ?.source.displayName ??
-                                          '',
+                                      _selectedItem?.source.displayName ?? '',
                                       style: TextStyle(
                                         fontSize: 9,
-                                        color: _selectedItem
-                                            ?.source.themeColor,
+                                        color: _selectedItem?.source.themeColor,
                                       ),
                                     ),
                                   ),
                                   if (_selectedCover != null) ...[
                                     const SizedBox(width: 4),
                                     _buildFeatureChip(
-                                        CupertinoIcons.photo, '封面'),
+                                      CupertinoIcons.photo,
+                                      '封面',
+                                    ),
                                   ],
-                                  if (_selectedLyrics?.hasLyrics ??
-                                      false) ...[
+                                  if (_selectedLyrics?.hasLyrics ?? false) ...[
                                     const SizedBox(width: 4),
                                     _buildFeatureChip(
-                                        CupertinoIcons.text_quote,
-                                        '歌词'),
+                                      CupertinoIcons.text_quote,
+                                      '歌词',
+                                    ),
                                   ],
                                 ],
                               ),
@@ -943,8 +1023,7 @@ class _ManualMusicScraperPageState
                             '封面${_hasCover ? "(覆盖)" : ""}',
                             _downloadCover && _selectedCover != null,
                             _selectedCover != null
-                                ? (v) =>
-                                    setState(() => _downloadCover = v)
+                                ? (v) => setState(() => _downloadCover = v)
                                 : null,
                           ),
                         ),
@@ -955,8 +1034,7 @@ class _ManualMusicScraperPageState
                             _downloadLyrics &&
                                 (_selectedLyrics?.hasLyrics ?? false),
                             (_selectedLyrics?.hasLyrics ?? false)
-                                ? (v) => setState(
-                                    () => _downloadLyrics = v)
+                                ? (v) => setState(() => _downloadLyrics = v)
                                 : null,
                           ),
                         ),
@@ -968,17 +1046,14 @@ class _ManualMusicScraperPageState
                       children: [
                         Expanded(
                           child: CupertinoButton(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 11),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
                             color: context.isDark
-                                ? Colors.white
-                                    .withValues(alpha: 0.08)
+                                ? Colors.white.withValues(alpha: 0.08)
                                 : CupertinoColors.systemGrey6,
                             borderRadius: BorderRadius.circular(10),
                             onPressed: _isScraping
                                 ? null
-                                : () =>
-                                    setState(_clearSelection),
+                                : () => setState(_clearSelection),
                             child: Text(
                               '取消',
                               style: TextStyle(
@@ -992,22 +1067,23 @@ class _ManualMusicScraperPageState
                         Expanded(
                           flex: 2,
                           child: CupertinoButton(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 11),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
                             color: YYColors.accentPrimary,
                             borderRadius: BorderRadius.circular(10),
-                            onPressed: _isScraping
-                                ? null
-                                : _confirmAndScrape,
+                            onPressed: _isScraping ? null : _confirmAndScrape,
                             child: _isScraping
                                 ? const CupertinoActivityIndicator(
-                                    color: Colors.white, radius: 10)
+                                    color: Colors.white,
+                                    radius: 10,
+                                  )
                                 : const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(CupertinoIcons.checkmark,
-                                          size: 16,
-                                          color: Colors.white),
+                                      Icon(
+                                        CupertinoIcons.checkmark,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 6),
                                       Text(
                                         '确认刮削',
@@ -1033,12 +1109,16 @@ class _ManualMusicScraperPageState
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     CupertinoActivityIndicator(
-                        radius: 8, color: context.yyTextTertiary),
+                      radius: 8,
+                      color: context.yyTextTertiary,
+                    ),
                     const SizedBox(width: 12),
                     Text(
                       '正在获取详情...',
                       style: TextStyle(
-                          color: context.yyTextSecondary, fontSize: 14),
+                        color: context.yyTextSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -1060,19 +1140,17 @@ class _ManualMusicScraperPageState
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon,
-              size: 10,
-              color: context.isDark
-                  ? Colors.green[300]
-                  : Colors.green[700]),
+          Icon(
+            icon,
+            size: 10,
+            color: context.isDark ? Colors.green[300] : Colors.green[700],
+          ),
           const SizedBox(width: 2),
           Text(
             label,
             style: TextStyle(
               fontSize: 9,
-              color: context.isDark
-                  ? Colors.green[300]
-                  : Colors.green[700],
+              color: context.isDark ? Colors.green[300] : Colors.green[700],
             ),
           ),
         ],
@@ -1081,7 +1159,10 @@ class _ManualMusicScraperPageState
   }
 
   Widget _buildCompactOption(
-      String label, bool value, void Function(bool)? onChanged) {
+    String label,
+    bool value,
+    void Function(bool)? onChanged,
+  ) {
     final isEnabled = onChanged != null;
     return GestureDetector(
       onTap: isEnabled ? () => onChanged(!value) : null,
@@ -1091,12 +1172,12 @@ class _ManualMusicScraperPageState
           color: value
               ? YYColors.accentPrimary.withValues(alpha: 0.1)
               : (context.isDark
-                  ? Colors.white.withValues(alpha: 0.04)
-                  : CupertinoColors.systemGrey6),
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : CupertinoColors.systemGrey6),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color:
-                  value ? YYColors.accentPrimary : Colors.transparent),
+            color: value ? YYColors.accentPrimary : Colors.transparent,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1107,9 +1188,7 @@ class _ManualMusicScraperPageState
                   : CupertinoIcons.square,
               size: 16,
               color: isEnabled
-                  ? (value
-                      ? YYColors.accentPrimary
-                      : context.yyTextTertiary)
+                  ? (value ? YYColors.accentPrimary : context.yyTextTertiary)
                   : Colors.grey[400],
             ),
             const SizedBox(width: 4),
@@ -1120,9 +1199,7 @@ class _ManualMusicScraperPageState
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11,
-                  color: isEnabled
-                      ? context.yyTextPrimary
-                      : Colors.grey[400],
+                  color: isEnabled ? context.yyTextPrimary : Colors.grey[400],
                 ),
               ),
             ),

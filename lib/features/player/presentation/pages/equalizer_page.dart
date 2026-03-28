@@ -23,19 +23,25 @@ class EqualizerPage extends ConsumerWidget {
         ),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          minSize: 0,
-          child: Icon(CupertinoIcons.chevron_back,
-              color: YYColors.accentPrimary, size: 22),
+          minimumSize: Size.zero,
+          child: Icon(
+            CupertinoIcons.chevron_back,
+            color: YYColors.accentPrimary,
+            size: 22,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        middle: Text('均衡器',
-            style: TextStyle(
-                color: context.yyTextPrimary, fontWeight: FontWeight.w600)),
+        middle: Text(
+          '均衡器',
+          style: TextStyle(
+            color: context.yyTextPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         trailing: CupertinoSwitch(
           value: eq.enabled,
           activeTrackColor: _kEqColor,
-          onChanged: (v) =>
-              ref.read(equalizerProvider.notifier).setEnabled(v),
+          onChanged: (v) => ref.read(equalizerProvider.notifier).setEnabled(v),
         ),
       ),
       child: SafeArea(
@@ -55,18 +61,19 @@ class EqualizerPage extends ConsumerWidget {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
-                      onTap: () => ref
-                          .read(equalizerProvider.notifier)
-                          .setPreset(name),
+                      onTap: () =>
+                          ref.read(equalizerProvider.notifier).setPreset(name),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: isActive
                               ? _kEqColor
                               : (context.isDark
-                                  ? Colors.white.withValues(alpha: 0.08)
-                                  : Colors.black.withValues(alpha: 0.05)),
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.05)),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -125,14 +132,16 @@ class EqualizerPage extends ConsumerWidget {
             // Reset button
             CupertinoButton(
               padding: EdgeInsets.zero,
-              minSize: 0,
-              onPressed: () =>
-                  ref.read(equalizerProvider.notifier).resetAll(),
+              minimumSize: Size.zero,
+              onPressed: () => ref.read(equalizerProvider.notifier).resetAll(),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.arrow_counterclockwise,
-                      size: 14, color: context.yyTextTertiary),
+                  Icon(
+                    CupertinoIcons.arrow_counterclockwise,
+                    size: 14,
+                    color: context.yyTextTertiary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     '重置均衡器',
@@ -197,13 +206,14 @@ class _EQBandSlider extends StatelessWidget {
               data: SliderThemeData(
                 trackHeight: 4,
                 thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 8, elevation: 2),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 16),
-                activeTrackColor:
-                    enabled ? _kEqColor : context.yyTextTertiary,
-                inactiveTrackColor:
-                    context.yyTextTertiary.withValues(alpha: 0.15),
+                  enabledThumbRadius: 8,
+                  elevation: 2,
+                ),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                activeTrackColor: enabled ? _kEqColor : context.yyTextTertiary,
+                inactiveTrackColor: context.yyTextTertiary.withValues(
+                  alpha: 0.15,
+                ),
                 thumbColor: enabled
                     ? Colors.white
                     : context.yyTextTertiary.withValues(alpha: 0.5),
@@ -223,8 +233,7 @@ class _EQBandSlider extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color:
-                enabled ? context.yyTextPrimary : context.yyTextTertiary,
+            color: enabled ? context.yyTextPrimary : context.yyTextTertiary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),

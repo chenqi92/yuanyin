@@ -105,3 +105,25 @@ Future<T?> showYYCupertinoPopup<T>({
     },
   );
 }
+
+Future<T?> showYYNativeCupertinoPopup<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool useRootNavigator = true,
+  double horizontalPadding = 0,
+  double topPadding = 0,
+  double bottomPadding = 0,
+}) {
+  return showCupertinoModalPopup<T>(
+    context: context,
+    useRootNavigator: useRootNavigator,
+    builder: (popupContext) {
+      return YYBottomOverlayInset(
+        horizontal: horizontalPadding,
+        top: topPadding,
+        bottom: bottomPadding,
+        child: builder(popupContext),
+      );
+    },
+  );
+}

@@ -82,13 +82,17 @@ class LibraryPage extends ConsumerWidget {
                 ),
               ),
             ],
-            const SliverToBoxAdapter(child: _ShelfHeader(title: '资料库')),
+            const SliverToBoxAdapter(child: YYSectionTitle(title: '资料库')),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: YYPanel(
+                child: YYLiquidGlass(
+                  thin: true,
                   radius: 30,
                   padding: EdgeInsets.zero,
+                  color: context.isDark
+                      ? context.yyBgElevated.withValues(alpha: 0.82)
+                      : Colors.white.withValues(alpha: 0.72),
                   child: Column(
                     children: [
                       _LibraryRow(
@@ -211,33 +215,33 @@ class LibraryPage extends ConsumerWidget {
 
   void _showCreatePlaylist(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      useRootNavigator: true,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: context.yyBgElevated,
-        title: Text('新建歌单', style: TextStyle(color: context.yyTextPrimary)),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          style: TextStyle(color: context.yyTextPrimary),
-          decoration: InputDecoration(
-            hintText: '歌单名称',
-            hintStyle: TextStyle(color: context.yyTextTertiary),
-            filled: true,
-            fillColor: context.yyBgSurface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('新建歌单'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(
+            controller: nameCtrl,
+            autofocus: true,
+            placeholder: '歌单名称',
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              final name = nameCtrl.text.trim();
+              if (name.isNotEmpty) {
+                ref.read(playlistsProvider.notifier).createPlaylist(name);
+              }
+              Navigator.pop(ctx);
+            },
           ),
         ),
         actions: [
-          TextButton(
+          CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('取消', style: TextStyle(color: context.yyTextTertiary)),
+            child: const Text('取消'),
           ),
-          TextButton(
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isNotEmpty) {
@@ -245,10 +249,7 @@ class LibraryPage extends ConsumerWidget {
               }
               Navigator.pop(ctx);
             },
-            child: const Text(
-              '创建',
-              style: TextStyle(color: YYColors.accentPrimary),
-            ),
+            child: const Text('创建'),
           ),
         ],
       ),

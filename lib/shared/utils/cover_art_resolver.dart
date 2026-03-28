@@ -48,10 +48,21 @@ String? yyResolveCoverPath(String? coverUrl) {
 }
 
 File? yyResolveLocalCoverFile(String? coverUrl) {
-  if (yyIsRemoteCoverUrl(coverUrl)) return null;
-  final path = yyResolveCoverPath(coverUrl);
-  if (path == null || path.isEmpty) return null;
-  return File(path);
+  return yyResolveLocalCoverFileForSong(coverUrl: coverUrl);
+}
+
+File? yyResolveLocalCoverFileForSong({String? coverUrl, String? filePath}) {
+  for (final candidate in yyResolveCoverCandidates(
+    coverUrl: coverUrl,
+    filePath: filePath,
+  )) {
+    if (yyIsRemoteCoverUrl(candidate)) continue;
+    final path = yyResolveCoverPath(candidate);
+    if (path == null || path.isEmpty) continue;
+    final file = File(path);
+    if (file.existsSync()) return file;
+  }
+  return null;
 }
 
 List<String> yyResolveCoverCandidates({String? coverUrl, String? filePath}) {
@@ -64,8 +75,17 @@ List<String> yyResolveCoverCandidates({String? coverUrl, String? filePath}) {
     resolved.add(normalized);
   }
 
+  for (final candidate in _yyCompanionCandidates(
+    filePath,
+    includeSharedCandidates: false,
+  )) {
+    addCandidate(candidate);
+  }
   addCandidate(coverUrl);
-  for (final candidate in _yyCompanionCandidates(filePath)) {
+  for (final candidate in _yyCompanionCandidates(
+    filePath,
+    includeStemCandidates: false,
+  )) {
     addCandidate(candidate);
   }
 
@@ -80,8 +100,13 @@ ImageProvider<Object>? yyBuildCoverImageProvider(
     coverUrl: coverUrl,
     filePath: filePath,
   );
-  if (candidates.isEmpty) return null;
-  return yyBuildCoverImageProviderFromCandidate(candidates.first);
+  for (final candidate in candidates) {
+    final provider = yyBuildCoverImageProviderFromCandidate(candidate);
+    if (provider != null) {
+      return provider;
+    }
+  }
+  return null;
 }
 
 ImageProvider<Object>? yyBuildCoverImageProviderFromCandidate(
@@ -94,7 +119,12 @@ ImageProvider<Object>? yyBuildCoverImageProviderFromCandidate(
     return NetworkImage(path);
   }
 
-  return FileImage(File(path));
+  final file = File(path);
+  if (!file.existsSync()) {
+    return null;
+  }
+
+  return FileImage(file);
 }
 
 String? _yyNormalizeCoverUrl(String? coverUrl) {
@@ -125,7 +155,11 @@ String? _yyNormalizeCoverUrl(String? coverUrl) {
   return decoded;
 }
 
-Iterable<String> _yyCompanionCandidates(String? filePath) sync* {
+Iterable<String> _yyCompanionCandidates(
+  String? filePath, {
+  bool includeStemCandidates = true,
+  bool includeSharedCandidates = true,
+}) sync* {
   final normalized = _yyNormalizeCoverUrl(filePath);
   if (normalized == null) return;
 
@@ -133,7 +167,11 @@ Iterable<String> _yyCompanionCandidates(String? filePath) sync* {
     final uri = Uri.tryParse(normalized);
     if (uri == null) return;
 
-    final synologyCandidates = _yySynologyCompanionCandidates(uri);
+    final synologyCandidates = _yySynologyCompanionCandidates(
+      uri,
+      includeStemCandidates: includeStemCandidates,
+      includeSharedCandidates: includeSharedCandidates,
+    );
     if (synologyCandidates.isNotEmpty) {
       yield* synologyCandidates;
       return;
@@ -144,15 +182,19 @@ Iterable<String> _yyCompanionCandidates(String? filePath) sync* {
     final directorySegments = uri.pathSegments.take(
       uri.pathSegments.length - 1,
     );
-    for (final ext in _yySongImageExts) {
-      yield uri
-          .replace(pathSegments: [...directorySegments, '$stem$ext'])
-          .toString();
+    if (includeStemCandidates) {
+      for (final ext in _yySongImageExts) {
+        yield uri
+            .replace(pathSegments: [...directorySegments, '$stem$ext'])
+            .toString();
+      }
     }
-    for (final fileName in _yyCompanionCoverNames) {
-      yield uri
-          .replace(pathSegments: [...directorySegments, fileName])
-          .toString();
+    if (includeSharedCandidates) {
+      for (final fileName in _yyCompanionCoverNames) {
+        yield uri
+            .replace(pathSegments: [...directorySegments, fileName])
+            .toString();
+      }
     }
     return;
   }
@@ -162,15 +204,23 @@ Iterable<String> _yyCompanionCandidates(String? filePath) sync* {
   final mediaFile = File(localPath);
   final parent = mediaFile.parent.path;
   final stem = _yyStem(mediaFile.uri.pathSegments.last);
-  for (final ext in _yySongImageExts) {
-    yield '$parent/$stem$ext';
+  if (includeStemCandidates) {
+    for (final ext in _yySongImageExts) {
+      yield '$parent/$stem$ext';
+    }
   }
-  for (final fileName in _yyCompanionCoverNames) {
-    yield '$parent/$fileName';
+  if (includeSharedCandidates) {
+    for (final fileName in _yyCompanionCoverNames) {
+      yield '$parent/$fileName';
+    }
   }
 }
 
-List<String> _yySynologyCompanionCandidates(Uri uri) {
+List<String> _yySynologyCompanionCandidates(
+  Uri uri, {
+  bool includeStemCandidates = true,
+  bool includeSharedCandidates = true,
+}) {
   final parameters = Map<String, String>.from(uri.queryParameters);
   final remotePath = parameters['path'];
   if (remotePath == null || remotePath.isEmpty) return const [];
@@ -181,15 +231,23 @@ List<String> _yySynologyCompanionCandidates(Uri uri) {
   final directory = remotePath.substring(0, slashIndex);
   final stem = _yyStem(remotePath.substring(slashIndex + 1));
   final candidates = <String>[];
-  for (final ext in _yySongImageExts) {
-    final updatedParameters = Map<String, String>.from(parameters)
-      ..['path'] = '$directory/$stem$ext';
-    candidates.add(uri.replace(queryParameters: updatedParameters).toString());
+  if (includeStemCandidates) {
+    for (final ext in _yySongImageExts) {
+      final updatedParameters = Map<String, String>.from(parameters)
+        ..['path'] = '$directory/$stem$ext';
+      candidates.add(
+        uri.replace(queryParameters: updatedParameters).toString(),
+      );
+    }
   }
-  for (final fileName in _yyCompanionCoverNames) {
-    final updatedParameters = Map<String, String>.from(parameters)
-      ..['path'] = '$directory/$fileName';
-    candidates.add(uri.replace(queryParameters: updatedParameters).toString());
+  if (includeSharedCandidates) {
+    for (final fileName in _yyCompanionCoverNames) {
+      final updatedParameters = Map<String, String>.from(parameters)
+        ..['path'] = '$directory/$fileName';
+      candidates.add(
+        uri.replace(queryParameters: updatedParameters).toString(),
+      );
+    }
   }
   return candidates;
 }

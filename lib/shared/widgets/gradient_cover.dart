@@ -65,7 +65,15 @@ class _SmartCoverState extends State<SmartCover> {
         ? null
         : yyBuildCoverImageProviderFromCandidate(_candidates[_candidateIndex]);
 
-    if (provider == null) return errorWidget;
+    if (provider == null) {
+      if (_candidateIndex < _candidates.length - 1) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _candidateIndex += 1);
+        });
+      }
+      return errorWidget;
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),

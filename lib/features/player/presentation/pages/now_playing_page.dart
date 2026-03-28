@@ -734,42 +734,32 @@ class _UtilityTray extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        YYLiquidGlass(
-          thin: true,
-          radius: 30,
-          padding: EdgeInsets.zero,
-          color: Colors.white.withValues(alpha: 0.05),
-          child: SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _TrayAction(
-                    icon: CupertinoIcons.quote_bubble_fill,
-                    label: '歌词',
-                    onTap: onLyrics,
-                  ),
-                ),
-                const _TrayDivider(),
-                Expanded(
-                  child: _TrayAction(
-                    icon: CupertinoIcons.list_bullet,
-                    label: '队列',
-                    badge: queueCount > 0 ? '$queueCount' : null,
-                    onTap: onQueue,
-                  ),
-                ),
-                const _TrayDivider(),
-                Expanded(
-                  child: _TrayAction(
-                    icon: CupertinoIcons.sparkles,
-                    label: '刮削',
-                    onTap: onScrape,
-                  ),
-                ),
-              ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: _TrayAction(
+                icon: CupertinoIcons.quote_bubble_fill,
+                label: '歌词',
+                onTap: onLyrics,
+              ),
             ),
-          ),
+            Expanded(
+              child: _TrayAction(
+                icon: CupertinoIcons.list_bullet,
+                label: '队列',
+                badge: queueCount > 0 ? '$queueCount' : null,
+                onTap: onQueue,
+              ),
+            ),
+            Expanded(
+              child: _TrayAction(
+                icon: CupertinoIcons.sparkles,
+                label: '刮削',
+                onTap: onScrape,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         YYLiquidGlass(
@@ -838,61 +828,66 @@ class _TrayAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(YYRadius.full),
       onPressed: onTap,
-      child: SizedBox(
-        height: 58,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 16),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              YYLiquidGlass(
+                thin: true,
+                radius: YYRadius.full,
+                padding: EdgeInsets.zero,
+                color: Colors.white.withValues(alpha: 0.05),
+                child: SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: Icon(icon, color: Colors.white, size: 19),
                 ),
               ),
-            ),
-            if (badge != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(YYRadius.full),
-                ),
-                child: Text(
-                  badge!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+              if (badge != null)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: YYColors.accentPrimary,
+                      borderRadius: BorderRadius.circular(YYRadius.full),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                 ),
-              ),
             ],
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.78),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _TrayDivider extends StatelessWidget {
-  const _TrayDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 24,
-      color: Colors.white.withValues(alpha: 0.08),
     );
   }
 }

@@ -52,10 +52,12 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     final accent = YYSeedPalette.primary(song.title);
 
     // Parse lyrics
-    final lrcText = _fetchedLyrics ?? song.lyrics;
-    final lyrics = (lrcText != null && lrcText.isNotEmpty)
-        ? LrcParser.parse(lrcText)
+    final rawLyrics = _fetchedLyrics ?? song.lyrics;
+    final parsedLyrics = (rawLyrics != null && rawLyrics.isNotEmpty)
+        ? LrcParser.parse(rawLyrics)
         : <LyricLine>[];
+    final isTimedLyrics = parsedLyrics.isNotEmpty;
+    final lyrics = isTimedLyrics ? parsedLyrics : _plainTextLines(rawLyrics);
 
     // Auto-fetch lyrics
     if (lyrics.isEmpty && !_fetchAttempted && !_isFetching) {
@@ -70,7 +72,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
 
     // Track current lyric line
     final position = playerState.position;
-    final newIndex = lyrics.isNotEmpty
+    final newIndex = isTimedLyrics && lyrics.isNotEmpty
         ? LrcParser.findCurrentIndex(lyrics, position)
         : -1;
     if (newIndex != _currentIndex && newIndex >= 0) {
@@ -257,11 +259,13 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                             final isCurrent = index == _currentIndex;
 
                             return GestureDetector(
-                              onTap: () {
-                                ref
-                                    .read(playerProvider.notifier)
-                                    .seek(line.time);
-                              },
+                              onTap: isTimedLyrics
+                                  ? () {
+                                      ref
+                                          .read(playerProvider.notifier)
+                                          .seek(line.time);
+                                    }
+                                  : null,
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
                                 padding: const EdgeInsets.symmetric(
@@ -271,13 +275,19 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
                                 child: Text(
                                   line.text,
                                   style: TextStyle(
-                                    fontSize: isCurrent ? 24 : 18,
-                                    fontWeight: isCurrent
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: isCurrent
+                                    fontSize: isTimedLyrics
+                                        ? (isCurrent ? 24 : 18)
+                                        : 20,
+                                    fontWeight: isTimedLyrics
+                                        ? (isCurrent
+                                              ? FontWeight.bold
+                                              : FontWeight.normal)
+                                        : FontWeight.w600,
+                                    color: isTimedLyrics && isCurrent
                                         ? Colors.white
-                                        : Colors.white.withValues(alpha: 0.4),
+                                        : Colors.white.withValues(
+                                            alpha: isTimedLyrics ? 0.4 : 0.78,
+                                          ),
                                     height: 1.4,
                                   ),
                                   textAlign: TextAlign.center,
@@ -324,6 +334,7 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
         try {
           final db = ref.read(musicDatabaseProvider);
           await db.updateSongLyrics(songId, lrc);
+          await ref.read(playerProvider.notifier).refreshCurrentSong();
         } catch (_) {
           // Non-fatal
         }
@@ -333,5 +344,17 @@ class _LyricsPageState extends ConsumerState<LyricsPage> {
     } finally {
       if (mounted) setState(() => _isFetching = false);
     }
+  }
+
+  List<LyricLine> _plainTextLines(String? rawLyrics) {
+    if (rawLyrics == null || rawLyrics.trim().isEmpty) return const [];
+    final lines = rawLyrics
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    return [
+      for (final line in lines) LyricLine(time: Duration.zero, text: line),
+    ];
   }
 }

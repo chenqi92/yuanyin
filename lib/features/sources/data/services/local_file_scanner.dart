@@ -4,15 +4,30 @@ import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../../../../shared/utils/cover_art_resolver.dart';
 import '../../../player/domain/entities/music_item.dart';
 
 final _log = Logger(printer: SimplePrinter());
 
 /// 支持的音频文件扩展名
 const _audioExtensions = {
-  '.mp3', '.flac', '.m4a', '.aac', '.wav', '.ogg', '.opus',
-  '.ape', '.wma', '.aiff', '.aif', '.tta', '.dsf', '.dff',
-  '.mka', '.wv', '.ncm',
+  '.mp3',
+  '.flac',
+  '.m4a',
+  '.aac',
+  '.wav',
+  '.ogg',
+  '.opus',
+  '.ape',
+  '.wma',
+  '.aiff',
+  '.aif',
+  '.tta',
+  '.dsf',
+  '.dff',
+  '.mka',
+  '.wv',
+  '.ncm',
 };
 
 /// 本地文件扫描器
@@ -91,9 +106,9 @@ class LocalFileScanner {
 
       final songId = file.path.hashCode.toRadixString(36);
 
-      // 提取并缓存封面
-      String? coverUrl;
-      if (metadata.pictures.isNotEmpty) {
+      // 优先使用同名封面文件，其次才回退到嵌入封面
+      String? coverUrl = await _findCompanionCover(file);
+      if (coverUrl == null && metadata.pictures.isNotEmpty) {
         final picture = metadata.pictures.first;
         coverUrl = await _saveCover(songId, picture.bytes);
       }
@@ -118,16 +133,34 @@ class LocalFileScanner {
       _log.w('读取元数据失败: ${file.path} - $e');
       final fileName = file.path.split('/').last;
       final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+      final coverUrl = await _findCompanionCover(file);
       return MusicItem(
         id: file.path.hashCode.toRadixString(36),
         title: nameWithoutExt,
         artist: '未知艺术家',
         album: '未知专辑',
+        coverUrl: coverUrl,
         filePath: file.path,
         fileSize: await file.length(),
         format: _getExtension(file.path).replaceFirst('.', '').toUpperCase(),
       );
     }
+  }
+
+  Future<String?> _findCompanionCover(File audioFile) async {
+    for (final candidate in yyResolveCoverCandidates(
+      filePath: audioFile.path,
+    )) {
+      if (yyIsRemoteCoverUrl(candidate)) continue;
+      final resolved = yyResolveCoverPath(candidate);
+      if (resolved == null || resolved.isEmpty) continue;
+      if (resolved == audioFile.path) continue;
+      final file = File(resolved);
+      if (await file.exists()) {
+        return resolved;
+      }
+    }
+    return null;
   }
 
   /// 保存封面到缓存

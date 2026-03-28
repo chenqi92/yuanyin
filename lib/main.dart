@@ -21,19 +21,34 @@ void _triggerNetworkPermission() {
   InternetAddress.lookup('example.com').catchError((_) => <InternetAddress>[]);
 }
 
+void _disableDebugVisualOverlays() {
+  debugPaintBaselinesEnabled = false;
+  debugPaintSizeEnabled = false;
+  debugPaintPointersEnabled = false;
+  debugPaintLayerBordersEnabled = false;
+  debugRepaintRainbowEnabled = false;
+  debugRepaintTextRainbowEnabled = false;
+}
+
+void _installDebugVisualOverlayGuard() {
+  WidgetsBinding.instance.addPersistentFrameCallback((_) {
+    if (debugPaintBaselinesEnabled ||
+        debugPaintSizeEnabled ||
+        debugPaintPointersEnabled ||
+        debugPaintLayerBordersEnabled ||
+        debugRepaintRainbowEnabled ||
+        debugRepaintTextRainbowEnabled) {
+      _disableDebugVisualOverlays();
+    }
+  });
+}
+
 void main() async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      assert(() {
-        debugPaintBaselinesEnabled = false;
-        debugPaintSizeEnabled = false;
-        debugPaintPointersEnabled = false;
-        debugPaintLayerBordersEnabled = false;
-        debugRepaintRainbowEnabled = false;
-        debugRepaintTextRainbowEnabled = false;
-        return true;
-      }());
+      _disableDebugVisualOverlays();
+      _installDebugVisualOverlayGuard();
       FlutterError.onError = (details) {
         FlutterError.dumpErrorToConsole(details);
         runApp(
@@ -128,6 +143,10 @@ class PrimuseApp extends ConsumerWidget {
         darkTheme: buildPrimuseDarkTheme(),
         themeMode: _resolveThemeMode(settings.themeMode),
         routerConfig: goRouter,
+        builder: (context, child) {
+          _disableDebugVisualOverlays();
+          return child ?? const SizedBox.shrink();
+        },
         locale: localeOverride,
         supportedLocales: S.supportedLocales,
         localizationsDelegates: const [

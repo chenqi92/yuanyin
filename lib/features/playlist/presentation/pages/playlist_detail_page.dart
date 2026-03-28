@@ -325,7 +325,7 @@ class _PlaylistDetailPageState extends ConsumerState<PlaylistDetailPage>
   }
 
   void _showOptions(BuildContext context) {
-    showYYCupertinoPopup(
+    showYYNativeCupertinoPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
         actions: [

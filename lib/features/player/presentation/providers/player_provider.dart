@@ -303,7 +303,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _startLiveActivity(MusicItem song) async {
     // 尝试读取封面数据
     Uint8List? coverData;
-    final coverFile = yyResolveLocalCoverFile(song.coverUrl);
+    final coverFile = yyResolveLocalCoverFileForSong(
+      coverUrl: song.coverUrl,
+      filePath: song.filePath,
+    );
     if (coverFile != null) {
       try {
         if (await coverFile.exists()) {

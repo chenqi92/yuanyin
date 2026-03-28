@@ -239,7 +239,7 @@ class _SongListPageState extends ConsumerState<SongListPage>
   }
 
   void _showSortMenu() {
-    showYYCupertinoPopup(
+    showYYNativeCupertinoPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
         title: const Text('排序方式'),

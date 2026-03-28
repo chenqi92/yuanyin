@@ -166,7 +166,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
   }
 
   void _pushAdd(BuildContext context) {
-    showYYCupertinoPopup(
+    showYYNativeCupertinoPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
         title: const Text('选择源类型'),
@@ -210,7 +210,7 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
   }
 
   void _showOptions(BuildContext context, WidgetRef ref, SourceEntity source) {
-    showYYCupertinoPopup(
+    showYYNativeCupertinoPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
         title: Row(
@@ -303,9 +303,8 @@ class _SourcesPageState extends ConsumerState<SourcesPage> {
       return;
     }
     if (context.mounted) {
-      showDialog(
+      showCupertinoDialog(
         context: context,
-        useRootNavigator: true,
         barrierDismissible: false,
         builder: (_) => _SourceScrapeDialog(
           ref: ref,
