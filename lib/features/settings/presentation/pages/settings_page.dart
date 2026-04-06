@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../../app/theme/theme.dart';
 import '../../../../shared/widgets/modern_music_ui.dart';
+import '../../../library/data/services/music_scraper_manager_service.dart';
+import '../../../library/presentation/providers/music_scraper_provider.dart';
 import '../../data/services/settings_service.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -45,13 +47,9 @@ class SettingsPage extends ConsumerWidget {
                         onTap: () => context.push('/sources'),
                       ),
                       _separator(context),
-                      _SettingsNavRow(
-                        icon: CupertinoIcons.sparkles,
-                        color: YYColors.accentSecondary,
-                        title: '刮削源管理',
-                        onTap: () => context.push('/scraper-sources'),
-                        isLast: true,
-                      ),
+                      _ScraperNavRow(ref: ref),
+                      _separator(context),
+                      _OnlyFillMissingRow(ref: ref),
                     ],
                   ),
                 ),
@@ -588,6 +586,138 @@ class _EngineOption extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 刮削源管理行（显示已启用数量）
+class _ScraperNavRow extends StatelessWidget {
+  final WidgetRef ref;
+  const _ScraperNavRow({required this.ref});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabledCount = ref.watch(enabledMusicScraperCountProvider);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push('/scraper-sources'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              const YYIconBadge(
+                icon: CupertinoIcons.sparkles,
+                color: YYColors.accentSecondary,
+                size: 40,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  '刮削源管理',
+                  style: TextStyle(
+                    color: context.yyTextPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (enabledCount > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: YYColors.accentSecondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$enabledCount 个启用',
+                    style: TextStyle(
+                      color: YYColors.accentSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Icon(
+                CupertinoIcons.chevron_right,
+                size: 15,
+                color: context.yyTextTertiary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 仅填充缺失字段开关
+class _OnlyFillMissingRow extends StatefulWidget {
+  final WidgetRef ref;
+  const _OnlyFillMissingRow({required this.ref});
+
+  @override
+  State<_OnlyFillMissingRow> createState() => _OnlyFillMissingRowState();
+}
+
+class _OnlyFillMissingRowState extends State<_OnlyFillMissingRow> {
+  late bool _value;
+
+  @override
+  void initState() {
+    super.initState();
+    final manager = widget.ref.read(musicScraperManagerProvider);
+    _value = manager.onlyFillMissingFields;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const YYIconBadge(
+            icon: CupertinoIcons.pencil_ellipsis_rectangle,
+            color: YYColors.accentTertiary,
+            size: 40,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '仅填充缺失字段',
+                  style: TextStyle(
+                    color: context.yyTextPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '关闭后将覆盖已有元数据',
+                  style: TextStyle(
+                    color: context.yyTextTertiary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoSwitch(
+            value: _value,
+            onChanged: (value) {
+              setState(() => _value = value);
+              widget.ref.read(musicScraperManagerProvider).onlyFillMissingFields = value;
+            },
+            activeTrackColor: YYColors.accentPrimary,
+          ),
+        ],
       ),
     );
   }
